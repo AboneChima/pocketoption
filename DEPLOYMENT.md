@@ -1,13 +1,20 @@
 # PocketOption Clone - Production Deployment Guide
 
-This guide will help you deploy the PocketOption clone to production using MongoDB Atlas, Render.com, and Netlify.
+This guide will help you deploy the PocketOption clone to production using MongoDB Atlas and Render.com (fullstack deployment).
+
+## Architecture Overview
+
+**Simplified Deployment Strategy:**
+- **Render.com**: Hosts the complete Next.js fullstack application (frontend + API routes)
+- **MongoDB Atlas**: Database hosting (free tier)
+- **Netlify** (Optional): Domain redirect to Render deployment
 
 ## Prerequisites
 
 - GitHub account
 - MongoDB Atlas account (free)
 - Render.com account (free)
-- Netlify account (free)
+- Netlify account (optional, for custom domain)
 
 ## Step 1: Set up MongoDB Atlas Database
 

@@ -1,37 +1,19 @@
+# Netlify configuration for Render-only deployment
+# This configuration disables Netlify builds and redirects all traffic to Render
+
 [build]
-  publish = "out"
-  command = "npm run build"
+  # Disable builds - we're using Render for the fullstack deployment
+  command = "echo 'Build disabled - using Render for deployment'"
+  publish = "public"  # Use a minimal directory
 
-[build.environment]
-  NODE_VERSION = "20.9.0"
-  NPM_VERSION = "10"
-
-# Proxy API requests to Render backend
+# Redirect all traffic to Render deployment
 [[redirects]]
-  from = "/api/*"
-  to = "https://pocketoption-backend.onrender.com/api/:splat"
+  from = "/*"
+  to = "https://pocketoption-backend.onrender.com/:splat"
   status = 200
   force = true
 
-# Handle client-side routing for Next.js
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-
-# Function configuration
-[functions]
-  node_bundler = "esbuild"
-
-# CORS headers for API requests
-[[headers]]
-  for = "/api/*"
-  [headers.values]
-    Access-Control-Allow-Origin = "*"
-    Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
-    Access-Control-Allow-Headers = "Content-Type, Authorization"
-
-# Security headers for the main site
+# Optional: Keep security headers
 [[headers]]
   for = "/*"
   [headers.values]
