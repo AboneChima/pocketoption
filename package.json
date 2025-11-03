@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "build:prod": "prisma generate && next build",
+    "build:prod": "node scripts/postinstall.js && next build",
     "export": "next export",
     "start": "next start",
     "lint": "next lint",
