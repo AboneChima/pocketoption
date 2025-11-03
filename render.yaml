@@ -1,10 +1,12 @@
 services:
   - type: web
-    name: pocketoption-app
+    name: pocketoption-app-v2
     env: node
     plan: free
+    region: oregon
     buildCommand: |
-      echo "=== RENDER BUILD DIAGNOSTICS ==="
+      echo "=== RENDER BUILD DIAGNOSTICS v2.0 ==="
+      echo "Service: pocketoption-app-v2"
       echo "Build timestamp: $(date)"
       echo "Current working directory: $(pwd)"
       echo "Full path: $(realpath .)"
