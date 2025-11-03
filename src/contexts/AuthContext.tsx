@@ -1,6 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 interface User {
   id: string
@@ -37,6 +38,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const router = useRouter()
 
   const refreshUser = async () => {
     try {
@@ -94,12 +96,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await fetch('/api/auth/logout', { method: 'POST' })
       setUser(null)
       // Redirect to landing page after logout
-      window.location.href = '/'
+      router.push('/')
     } catch (error) {
       console.error('Logout error:', error)
       // Even if API fails, clear user state and redirect
       setUser(null)
-      window.location.href = '/'
+      router.push('/')
     }
   }
 
