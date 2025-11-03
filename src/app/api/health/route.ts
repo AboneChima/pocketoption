@@ -3,6 +3,17 @@ import { prisma } from '@/lib/db'
 
 export async function GET() {
   try {
+    // Check if prisma is available
+    if (!prisma) {
+      return NextResponse.json({
+        status: 'partial',
+        timestamp: new Date().toISOString(),
+        database: 'not_configured',
+        service: 'pocketoption-backend',
+        message: 'Database not configured - set DATABASE_URL environment variable'
+      })
+    }
+
     // Test database connection
     await prisma.$connect()
     
@@ -19,7 +30,8 @@ export async function GET() {
         status: 'unhealthy',
         timestamp: new Date().toISOString(),
         database: 'disconnected',
-        error: 'Database connection failed'
+        error: 'Database connection failed',
+        service: 'pocketoption-backend'
       },
       { status: 500 }
     )

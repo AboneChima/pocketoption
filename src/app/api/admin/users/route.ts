@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import jwt from 'jsonwebtoken'
 import { prisma } from '@/lib/db'
+import { createDatabaseUnavailableResponse, requireDatabase } from '@/lib/api-helpers'
 
 // Middleware to verify admin access
 async function verifyAdmin(request: NextRequest) {
@@ -12,8 +13,9 @@ async function verifyAdmin(request: NextRequest) {
   const token = authHeader.substring(7)
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any
+    const db = requireDatabase()
     
-    const user = await prisma.user.findUnique({
+    const user = await db.user.findUnique({
       where: { id: decoded.userId }
     })
 
@@ -29,6 +31,10 @@ async function verifyAdmin(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    if (!prisma) {
+      return createDatabaseUnavailableResponse()
+    }
+
     const admin = await verifyAdmin(request)
     if (!admin) {
       return NextResponse.json(
@@ -37,7 +43,8 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const users = await prisma.user.findMany({
+    const db = requireDatabase()
+    const users = await db.user.findMany({
       select: {
         id: true,
         firstName: true,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import jwt from 'jsonwebtoken'
 import { prisma } from '@/lib/db'
+import { createDatabaseUnavailableResponse, requireDatabase } from '@/lib/api-helpers'
 
 // Middleware to verify admin access
 async function verifyAdmin(request: NextRequest) {
@@ -12,8 +13,9 @@ async function verifyAdmin(request: NextRequest) {
   const token = authHeader.substring(7)
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any
+    const db = requireDatabase()
     
-    const user = await prisma.user.findUnique({
+    const user = await db.user.findUnique({
       where: { id: decoded.userId }
     })
 
@@ -29,6 +31,10 @@ async function verifyAdmin(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    if (!prisma) {
+      return createDatabaseUnavailableResponse()
+    }
+
     const admin = await verifyAdmin(request)
     if (!admin) {
       return NextResponse.json(
@@ -37,7 +43,8 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const withdrawals = await prisma.withdrawal.findMany({
+    const db = requireDatabase()
+    const withdrawals = await db.withdrawal.findMany({
       include: {
         user: {
           select: {
@@ -75,6 +82,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    if (!prisma) {
+      return createDatabaseUnavailableResponse()
+    }
+
     const admin = await verifyAdmin(request)
     if (!admin) {
       return NextResponse.json(
@@ -92,7 +103,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const updatedWithdrawal = await prisma.withdrawal.update({
+    const db = requireDatabase()
+    const updatedWithdrawal = await db.withdrawal.update({
       where: { id: withdrawalId },
       data: {
         status,

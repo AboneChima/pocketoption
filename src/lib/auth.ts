@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { prisma } from './db'
+import { requireDatabase } from './api-helpers'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret'
 
@@ -29,7 +30,13 @@ export async function createSession(userId: string): Promise<string> {
   const token = generateToken(userId)
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
 
-  await prisma.session.create({
+  if (!prisma) {
+    // If database is not available, just return the token without storing session
+    return token
+  }
+
+  const db = requireDatabase()
+  await db.session.create({
     data: {
       userId,
       token,
@@ -41,7 +48,14 @@ export async function createSession(userId: string): Promise<string> {
 }
 
 export async function validateSession(token: string) {
-  const session = await prisma.session.findUnique({
+  if (!prisma) {
+    // If database is not available, just validate the JWT token
+    const decoded = verifyToken(token)
+    return decoded ? { userId: decoded.userId } : null
+  }
+
+  const db = requireDatabase()
+  const session = await db.session.findUnique({
     where: { token },
     include: { user: true },
   })

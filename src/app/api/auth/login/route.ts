@@ -2,9 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { prisma } from '@/lib/db'
+import { createDatabaseUnavailableResponse, requireDatabase } from '@/lib/api-helpers'
 
 export async function POST(request: NextRequest) {
   try {
+    if (!prisma) {
+      return createDatabaseUnavailableResponse()
+    }
+
     const { email, password } = await request.json()
 
     if (!email || !password) {
@@ -14,8 +19,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Find user by email
-    const user = await prisma.user.findUnique({
+    const db = requireDatabase()
+    const user = await db.user.findUnique({
       where: { email }
     })
 

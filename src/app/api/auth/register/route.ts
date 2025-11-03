@@ -2,20 +2,26 @@ import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { prisma } from '@/lib/db'
+import { createDatabaseUnavailableResponse, requireDatabase } from '@/lib/api-helpers'
 
 export async function POST(request: NextRequest) {
   try {
-    const { name, email, password } = await request.json()
+    if (!prisma) {
+      return createDatabaseUnavailableResponse()
+    }
 
-    if (!name || !email || !password) {
+    const { firstName, lastName, email, password } = await request.json()
+
+    if (!firstName || !lastName || !email || !password) {
       return NextResponse.json(
-        { error: 'Name, email, and password are required' },
+        { error: 'All fields are required' },
         { status: 400 }
       )
     }
 
+    const db = requireDatabase()
     // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
+    const existingUser = await db.user.findUnique({
       where: { email }
     })
 
@@ -29,13 +35,8 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12)
 
-    // Split name into first and last name
-    const nameParts = name.trim().split(' ')
-    const firstName = nameParts[0]
-    const lastName = nameParts.slice(1).join(' ') || null
-
     // Create user
-    const user = await prisma.user.create({
+    const user = await db.user.create({
       data: {
         firstName,
         lastName,
