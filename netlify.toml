@@ -1,28 +1,40 @@
 [build]
-  publish = ".next"
+  publish = "out"
   command = "npm run build"
 
 [build.environment]
   NODE_VERSION = "18"
   NPM_VERSION = "9"
 
+# Proxy API requests to Render backend
 [[redirects]]
   from = "/api/*"
   to = "https://pocketoption-backend.onrender.com/api/:splat"
   status = 200
   force = true
 
+# Handle client-side routing for Next.js
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
 
+# Function configuration
 [functions]
   node_bundler = "esbuild"
 
+# CORS headers for API requests
 [[headers]]
   for = "/api/*"
   [headers.values]
     Access-Control-Allow-Origin = "*"
     Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
     Access-Control-Allow-Headers = "Content-Type, Authorization"
+
+# Security headers for the main site
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
