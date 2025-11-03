@@ -3,20 +3,25 @@ services:
     name: pocketoption-backend
     env: node
     plan: free
-    rootDir: ./
     buildCommand: |
       echo "Starting build process..."
+      echo "Current working directory: $(pwd)"
       echo "Node version: $(node --version)"
       echo "NPM version: $(npm --version)"
-      echo "Current directory: $(pwd)"
-      echo "Directory contents:"
+      echo "Project structure:"
       ls -la
+      echo "Checking for package.json..."
+      if [ -f "package.json" ]; then
+        echo "✓ package.json found"
+      else
+        echo "✗ package.json not found - listing all files:"
+        find . -name "package.json" -type f
+      fi
       echo "Installing dependencies..."
       npm ci
       echo "Running production build..."
       npm run build:prod
       echo "Build completed successfully!"
-      echo "Force redeploy trigger - $(date) - Build v2.1"
     startCommand: npm start
     envVars:
       - key: NODE_ENV
