@@ -5,12 +5,17 @@ services:
     plan: free
     rootDir: ./
     buildCommand: |
+      echo "Starting build process..."
+      echo "Node version: $(node --version)"
+      echo "NPM version: $(npm --version)"
       echo "Current directory: $(pwd)"
       echo "Directory contents:"
       ls -la
+      echo "Installing dependencies..."
       npm ci
-      npx prisma generate
+      echo "Running production build..."
       npm run build:prod
+      echo "Build completed successfully!"
     startCommand: npm start
     envVars:
       - key: NODE_ENV
