@@ -1,27 +1,36 @@
 services:
   - type: web
-    name: pocketoption-backend
+    name: pocketoption-app
     env: node
     plan: free
     buildCommand: |
-      echo "Starting build process..."
+      echo "=== RENDER BUILD DIAGNOSTICS ==="
+      echo "Build timestamp: $(date)"
       echo "Current working directory: $(pwd)"
+      echo "Full path: $(realpath .)"
       echo "Node version: $(node --version)"
       echo "NPM version: $(npm --version)"
-      echo "Project structure:"
+      echo ""
+      echo "=== PROJECT STRUCTURE ==="
       ls -la
-      echo "Checking for package.json..."
+      echo ""
+      echo "=== PACKAGE.JSON CHECK ==="
       if [ -f "package.json" ]; then
-        echo "✓ package.json found"
+        echo "✓ package.json found at: $(pwd)/package.json"
+        echo "Package name: $(cat package.json | grep '"name"' | head -1)"
       else
-        echo "✗ package.json not found - listing all files:"
-        find . -name "package.json" -type f
+        echo "✗ package.json not found in current directory"
+        echo "Searching for package.json files:"
+        find . -name "package.json" -type f 2>/dev/null || echo "No package.json found anywhere"
       fi
-      echo "Installing dependencies..."
+      echo ""
+      echo "=== INSTALLING DEPENDENCIES ==="
       npm ci
-      echo "Running production build..."
+      echo ""
+      echo "=== RUNNING PRODUCTION BUILD ==="
       npm run build:prod
-      echo "Build completed successfully!"
+      echo ""
+      echo "=== BUILD COMPLETED SUCCESSFULLY ==="
     startCommand: npm start
     envVars:
       - key: NODE_ENV
