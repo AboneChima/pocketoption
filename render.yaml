@@ -16,6 +16,7 @@ services:
       echo "Running production build..."
       npm run build:prod
       echo "Build completed successfully!"
+      echo "Force redeploy trigger - $(date) - Build v2.1"
     startCommand: npm start
     envVars:
       - key: NODE_ENV
