@@ -5,7 +5,7 @@ import { verifyToken } from '@/lib/auth'
 
 const withdrawalSchema = z.object({
   amount: z.number().min(10, 'Minimum withdrawal is $10').max(10000000, 'Maximum withdrawal is $10,000,000'),
-  currency: z.enum(['BTC', 'ETH', 'BNB', 'USDT'], { required_error: 'Currency is required' }),
+  currency: z.enum(['BTC', 'ETH', 'BNB', 'USDT'], { message: 'Currency is required' }),
   walletAddress: z.string().min(1, 'Wallet address is required')
 })
 
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
         userId: payload.userId,
         amount: validatedData.amount,
         currency: validatedData.currency,
-        walletAddress: validatedData.walletAddress,
+        address: validatedData.walletAddress,
         status: 'pending' // Admin needs to approve
       }
     })
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
     
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Invalid input', details: error.errors },
+        { error: 'Invalid input', details: error.issues },
         { status: 400 }
       )
     }

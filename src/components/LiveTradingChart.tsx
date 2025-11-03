@@ -39,7 +39,7 @@ export function LiveTradingChart({ selectedPair, currentPrice, className = '', o
   const [isConnected, setIsConnected] = useState(false)
   const [previousPrice, setPreviousPrice] = useState(currentPrice)
   const [priceDirection, setPriceDirection] = useState<'up' | 'down' | 'neutral'>('neutral')
-  const animationRef = useRef<number>()
+  const animationRef = useRef<number | undefined>(undefined)
   
   // Panning and interaction states
   const [panOffset, setPanOffset] = useState(0)

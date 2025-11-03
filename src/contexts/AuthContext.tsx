@@ -10,6 +10,9 @@ interface User {
   balance: number
   isAdmin: boolean
   kycStatus: string
+  createdAt: string
+  phone?: string
+  location?: string
 }
 
 interface AuthContextType {

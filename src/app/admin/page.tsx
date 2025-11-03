@@ -46,9 +46,13 @@ interface Trade {
 interface Deposit {
   id: string
   amount: number
-  method: string
+  currency: string
+  address: string
   status: string
+  txHash?: string
+  adminNotes?: string
   createdAt: string
+  updatedAt: string
   user: {
     email: string
   }
@@ -540,7 +544,7 @@ export default function AdminPage() {
                           <div className="flex-1">
                             <p className="text-white font-medium text-sm sm:text-base">{deposit.user.email}</p>
                             <div className="flex flex-wrap gap-2 text-xs sm:text-sm text-white/60 mt-1">
-                              <span>{deposit.currency || deposit.method}</span>
+                              <span>{deposit.currency}</span>
                               <span>•</span>
                               <span>{formatCurrency(deposit.amount)}</span>
                             </div>

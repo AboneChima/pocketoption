@@ -13,7 +13,12 @@ const nextConfig = {
     return []
   },
   images: {
-    domains: ['api.placeholder.com'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'api.placeholder.com',
+      },
+    ],
   },
 }
 

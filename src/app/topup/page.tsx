@@ -74,7 +74,7 @@ const cryptoOptions: CryptoOption[] = [
 
 export default function TopUpPage() {
   const router = useRouter()
-  const { user, balance, updateBalance } = useAuth()
+  const { user, updateBalance } = useAuth()
   const [selectedCrypto, setSelectedCrypto] = useState<CryptoOption | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [amount, setAmount] = useState('')
@@ -148,7 +148,7 @@ export default function TopUpPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900/20 to-purple-900/20 text-white">
       <div className="flex">
-        <DesktopSidebar balance={balance} />
+        <DesktopSidebar balance={user?.balance || 0} />
         
         <div className="flex-1 lg:ml-0">
           {/* Header */}
@@ -169,7 +169,7 @@ export default function TopUpPage() {
                 </div>
                 <div className="text-right">
                   <p className="text-sm text-gray-400">Current Balance</p>
-                  <p className="text-lg font-bold text-green-400">${balance?.toFixed(2) || '0.00'}</p>
+                  <p className="text-lg font-bold text-green-400">${user?.balance?.toFixed(2) || '0.00'}</p>
                 </div>
               </div>
             </div>

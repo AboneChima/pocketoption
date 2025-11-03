@@ -6,7 +6,7 @@ import { verifyToken } from '@/lib/auth'
 const tradeSchema = z.object({
   pair: z.string().min(1, 'Trading pair is required'),
   amount: z.number().min(1, 'Amount must be at least $1'),
-  direction: z.enum(['CALL', 'PUT'], { required_error: 'Direction must be CALL or PUT' }),
+  direction: z.enum(['CALL', 'PUT'], { message: 'Direction must be CALL or PUT' }),
   entryPrice: z.number().min(0, 'Entry price must be positive'),
   duration: z.number().min(30).max(300).default(60) // 30 seconds to 5 minutes
 })
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
     
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Invalid input', details: error.errors },
+        { error: 'Invalid input', details: error.issues },
         { status: 400 }
       )
     }

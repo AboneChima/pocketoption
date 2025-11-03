@@ -43,7 +43,7 @@ interface Transaction {
 }
 
 export default function HistoryPage() {
-  const { user, balance } = useAuth()
+  const { user } = useAuth()
   const router = useRouter()
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
@@ -217,7 +217,7 @@ export default function HistoryPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900/20 to-purple-900/20 text-white">
       <div className="flex">
-        <DesktopSidebar balance={balance} />
+        <DesktopSidebar balance={user?.balance || 0} />
         
         <div className="flex-1 lg:ml-0">
           {/* Header */}

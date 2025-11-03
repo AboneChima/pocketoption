@@ -102,8 +102,7 @@ export async function POST(request: NextRequest) {
       where: { id: withdrawalId },
       data: {
         status,
-        adminNote: adminNote || null,
-        processedAt: new Date()
+        adminNotes: adminNote || null
       }
     })
 
