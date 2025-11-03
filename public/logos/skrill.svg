@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 83" fill="currentColor">
+  <rect width="256" height="83" rx="8" fill="#862165"/>
+  <g transform="translate(30, 20)">
+    <!-- Skrill S symbol -->
+    <path d="M20 5 h30 c8 0 15 7 15 15 c0 5 -2 9 -6 12 l15 15 h-12 l-12 -12 h-15 v12 h-10 v-42 z M30 15 h20 c3 0 5 2 5 5 s-2 5 -5 5 h-20 z" fill="white"/>
+  </g>
+  <text x="128" y="65" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="14" font-weight="bold">Skrill</text>
+</svg>

@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: pocketoption-backend
+    env: node
+    plan: free
+    buildCommand: |
+      npm ci
+      npm run postinstall
+      npm run build:prod
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: SMTP_EMAIL
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: REVIEWS_EMAIL
+        sync: false
+      - key: ALPHA_VANTAGE_API_KEY
+        sync: false
+      - key: NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY
+        sync: false
+      - key: NEXT_PUBLIC_COINGECKO_API_KEY
+        sync: false
+      - key: NEXT_PUBLIC_BINANCE_API_KEY
+        sync: false
+    healthCheckPath: /api/health
