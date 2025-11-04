@@ -1,6 +1,5 @@
 ﻿'use client'
 
-import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { formatCurrency } from '@/lib/utils'
@@ -89,7 +88,6 @@ interface Withdrawal {
 }
 
 export default function AdminPage() {
-  const { user, loading, logout } = useAuth()
   const router = useRouter()
   const [users, setUsers] = useState<User[]>([])
   const [trades, setTrades] = useState<Trade[]>([])
@@ -104,6 +102,7 @@ export default function AdminPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [adminEmail, setAdminEmail] = useState<string>('')
+  const [isAuthChecking, setIsAuthChecking] = useState(true)
 
   // Check admin authentication
   useEffect(() => {
@@ -118,12 +117,10 @@ export default function AdminPage() {
     if (storedEmail) {
       setAdminEmail(storedEmail)
     }
-  }, [router])
-
-  useEffect(() => {
-    if (loading) return
+    
+    setIsAuthChecking(false)
     fetchAdminData()
-  }, [loading])
+  }, [router])
 
   const fetchAdminData = async () => {
     setIsRefreshing(true)
@@ -236,7 +233,7 @@ export default function AdminPage() {
     }
   }
 
-  if (loading) {
+  if (isAuthChecking) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#0F1419] via-[#12192A] to-[#1A2332] flex items-center justify-center">
         <div className="text-center">
