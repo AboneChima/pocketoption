@@ -71,20 +71,26 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
     setErrors({})
 
     try {
-      await register({
+      const result = await register({
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
         email: formData.email,
         password: formData.password
       })
       
-      // Show success message
-      setSuccess(true)
-      
-      // Redirect to login after 2 seconds
-      setTimeout(() => {
-        onToggleMode()
-      }, 2000)
+      if (result.success) {
+        // Show success message
+        setSuccess(true)
+        
+        // Redirect to login after 2 seconds
+        setTimeout(() => {
+          onToggleMode()
+        }, 2000)
+      } else {
+        setErrors({ 
+          general: result.message || 'Registration failed. Please try again.' 
+        })
+      }
       
     } catch (error: any) {
       setErrors({ 

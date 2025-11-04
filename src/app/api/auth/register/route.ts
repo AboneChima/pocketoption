@@ -1,80 +1,106 @@
-import { NextRequest, NextResponse } from 'next/server'
-import bcrypt from 'bcryptjs'
-import jwt from 'jsonwebtoken'
-import { prisma } from '@/lib/db'
-import { createDatabaseUnavailableResponse, requireDatabase } from '@/lib/api-helpers'
+﻿import { NextRequest, NextResponse } from 'next/server'
+import { hashPassword } from '@/lib/auth'
+import { generateToken } from '@/lib/auth'
+import { COLLECTIONS } from '@/lib/firebase'
+import { adminDb, adminAuth } from '@/lib/firebaseAdmin'
+import { setDoc, doc, getDoc } from 'firebase/firestore'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
-    if (!prisma) {
-      return createDatabaseUnavailableResponse()
-    }
+    const { email, password, firstName, lastName } = await request.json()
 
-    const { firstName, lastName, email, password } = await request.json()
-
-    if (!firstName || !lastName || !email || !password) {
+    // Input validation
+    if (!email || !password) {
       return NextResponse.json(
-        { error: 'All fields are required' },
+        { success: false, message: 'Email and password are required' },
         { status: 400 }
       )
     }
 
-    const db = requireDatabase()
-    // Check if user already exists
-    const existingUser = await db.user.findUnique({
-      where: { email }
-    })
-
-    if (existingUser) {
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
       return NextResponse.json(
-        { error: 'User already exists with this email' },
-        { status: 409 }
+        { success: false, message: 'Please enter a valid email address' },
+        { status: 400 }
       )
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 12)
+    // Password validation
+    if (password.length < 6) {
+      return NextResponse.json(
+        { success: false, message: 'Password must be at least 6 characters long' },
+        { status: 400 }
+      )
+    }
 
-    // Create user
-    const user = await db.user.create({
-      data: {
-        firstName,
-        lastName,
-        email,
-        password: hashedPassword,
-        balance: 10000, // Starting balance
-        isAdmin: false
+    try {
+      // Use Firebase authentication
+      const created = await adminAuth.createUser({ email, password })
+
+      const userData = {
+        id: created.uid,
+        email: created.email || '',
+        firstName: firstName || '',
+        lastName: lastName || '',
+        balance: 0,
+        isAdmin: (created.email || '').toLowerCase() === 'admin@pocketoption.com',
+        kycStatus: 'pending',
+        createdAt: new Date().toISOString(),
+        phone: '',
+        location: ''
       }
-    })
 
-    // Generate JWT token
-    const token = jwt.sign(
-      { 
-        userId: user.id, 
-        email: user.email,
-        isAdmin: user.isAdmin 
-      },
-      process.env.JWT_SECRET || 'fallback-secret',
-      { expiresIn: '7d' }
-    )
+      await adminDb.collection(COLLECTIONS.USERS).doc(created.uid).set(userData)
 
-    // Return user data and token
-    return NextResponse.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        name: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
-        role: user.isAdmin ? 'admin' : 'user',
-        balance: user.balance
-      },
-      token
-    })
+      const jwtToken = generateToken(created.uid)
+      
+      
+
+      // Create response with user data
+      const response = NextResponse.json({
+        success: true,
+        message: 'Registration successful',
+        user: userData,
+        token: jwtToken
+      })
+
+      // Set JWT token as httpOnly cookie for middleware authentication
+      response.cookies.set('auth-token', jwtToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 // 7 days
+      })
+
+      return response
+    } catch (firebaseError: any) {
+      console.error('Firebase Admin registration error:', firebaseError)
+      
+      // Handle specific Firebase errors
+      if (firebaseError.message.includes('email-already-exists')) {
+        return NextResponse.json(
+          { success: false, message: 'User already exists' },
+          { status: 409 }
+        )
+      }
+      
+      return NextResponse.json(
+        { success: false, message: firebaseError.message || 'Registration failed' },
+        { status: 400 }
+      )
+    }
 
   } catch (error) {
     console.error('Registration error:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { success: false, message: 'Internal server error' },
       { status: 500 }
     )
   }
 }
+
+

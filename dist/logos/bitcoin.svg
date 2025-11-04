@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 83" fill="currentColor">
+  <rect width="256" height="83" rx="8" fill="#F7931A"/>
+  <g transform="translate(100, 15)">
+    <!-- Bitcoin symbol -->
+    <circle cx="28" cy="26.5" r="26.5" fill="#FFFFFF"/>
+    <path d="M38.5 18.5 c0 -2.5 -2 -4.5 -4.5 -4.5 h-8 v-4 h-4 v4 h-3 v-4 h-4 v4 h-7 v4 h2 c1 0 2 1 2 2 v16 c0 1 -1 2 -2 2 h-2 v4 h7 v4 h4 v-4 h3 v4 h4 v-4 h8 c2.5 0 4.5 -2 4.5 -4.5 c0 -1.5 -0.7 -2.8 -1.8 -3.5 c1.1 -0.7 1.8 -2 1.8 -3.5 z M26 18 h6 c1 0 2 1 2 2 s-1 2 -2 2 h-6 z M26 26 h7 c1 0 2 1 2 2 s-1 2 -2 2 h-7 z" fill="#F7931A"/>
+  </g>
+  <text x="128" y="65" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="12" font-weight="bold">Bitcoin</text>
+</svg>

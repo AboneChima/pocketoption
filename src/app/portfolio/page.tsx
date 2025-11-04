@@ -1,233 +1,327 @@
 'use client'
 
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { useEffect, useState } from 'react'
+import DesktopSidebar from '@/components/DesktopSidebar'
+import MobileBottomNav from '@/components/MobileBottomNav'
+import { Button } from '@/components/ui/Button'
 import { 
-  ArrowLeft, 
+  DollarSign, 
   TrendingUp, 
   TrendingDown, 
-  DollarSign,
-  BarChart3,
-  PieChart,
-  Calendar,
-  Target,
-  Activity,
-  Award,
-  Clock,
-  Percent,
+  BarChart3, 
+  Target, 
+  Activity, 
+  Award, 
+  Percent, 
+  Clock, 
   Eye,
-  Filter,
+  RefreshCw,
   Download,
-  RefreshCw
+  Calendar
 } from 'lucide-react'
-import { toast } from 'react-hot-toast'
-import MobileBottomNav from '@/components/MobileBottomNav'
-import DesktopSidebar from '@/components/DesktopSidebar'
-import { Button } from '@/components/ui/Button'
 
-interface PortfolioStats {
-  totalProfit: number
-  totalTrades: number
-  winRate: number
-  bestTrade: number
-  worstTrade: number
-  avgTrade: number
-  profitableDays: number
-  totalDays: number
-  currentStreak: number
-  maxStreak: number
-}
-
+// Types
 interface Trade {
   id: string
   pair: string
   direction: 'BUY' | 'SELL'
   amount: number
   profit: number
-  timestamp: string
   status: 'win' | 'loss'
+  timestamp: string
 }
 
+interface PortfolioData {
+  trades: Trade[]
+  deposits: any[]
+  withdrawals: any[]
+  userBalance: number
+  lastUpdated: number
+}
+
+// Cache duration: 30 seconds
+const CACHE_DURATION = 30000
+
+// In-memory cache
+let portfolioCache: PortfolioData | null = null
+let cacheTimestamp = 0
+
 export default function PortfolioPage() {
-  const router = useRouter()
   const { user } = useAuth()
-  const [timeframe, setTimeframe] = useState<'7d' | '30d' | '90d' | 'all'>('30d')
-  const [trades, setTrades] = useState<Trade[]>([])
-  const [loading, setLoading] = useState(true)
-  const [userStats, setUserStats] = useState<any>(null)
+  const router = useRouter()
+  
+  // State
+  const [timeframe, setTimeframe] = useState('7d')
+  const [portfolioData, setPortfolioData] = useState<PortfolioData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  // Fetch user stats function
-  const fetchUserStats = async () => {
-    try {
-      setIsLoading(true)
-      const response = await fetch('/api/user/stats')
-      if (response.ok) {
-        const data = await response.json()
-        setUserStats(data)
-      }
-    } catch (error) {
-      console.error('Error fetching user stats:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // Fetch user stats on component mount
-  useEffect(() => {
-    if (user) {
-      fetchUserStats()
-    }
-  }, [user])
-
-  const stats = userStats ? {
-    totalProfit: userStats.totalProfit || 0,
-    totalTrades: userStats.totalTrades || 0,
-    winRate: userStats.winRate || 0,
-    bestTrade: userStats.bestTrade || 0,
-    worstTrade: userStats.worstTrade || 0,
-    avgTrade: userStats.averageTrade || 0,
-    profitableDays: Math.floor((userStats.wonTrades || 0) * 0.7), // Estimate
-    totalDays: Math.max(30, Math.floor((userStats.totalTrades || 0) * 0.2)), // Estimate
-    currentStreak: userStats.currentStreak || 0,
-    maxStreak: Math.max(userStats.currentStreak || 0, 12) // Estimate
-  } : {
-    totalProfit: 0,
-    totalTrades: 0,
-    winRate: 0,
-    bestTrade: 0,
-    worstTrade: 0,
-    avgTrade: 0,
-    profitableDays: 0,
-    totalDays: 0,
-    currentStreak: 0,
-    maxStreak: 0
-  }
-
-  // Get recent trades - for now using mock data, but this should come from API
-  const recentTrades: Trade[] = [
-    // This would be populated from a real API call
-  ];
-
+  // Utility functions
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
-      minimumFractionDigits: 2
+      minimumFractionDigits: 2,
     }).format(amount)
   }
 
   const formatTime = (timestamp: string) => {
-    return new Date(timestamp).toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+    return new Date(timestamp).toLocaleString()
   }
 
-  const handleExport = () => {
-    toast.success('Portfolio report exported successfully!');
-  };
+  // Check if cache is valid
+  const isCacheValid = useCallback(() => {
+    return portfolioCache && (Date.now() - cacheTimestamp) < CACHE_DURATION
+  }, [])
 
-  const handleRefresh = () => {
-    fetchUserStats();
-    toast.success('Portfolio data refreshed!');
-  };
+  // Fetch portfolio data with caching
+  const fetchPortfolioData = useCallback(async (forceRefresh = false) => {
+    // Use cache if valid and not forcing refresh
+    if (!forceRefresh && isCacheValid()) {
+      setPortfolioData(portfolioCache)
+      setIsLoading(false)
+      return
+    }
 
-  if (!user) {
-    router.push('/login');
-    return null;
-  }
+    try {
+      setError(null)
+      if (forceRefresh) {
+        setIsRefreshing(true)
+      } else {
+        setIsLoading(true)
+      }
 
-  if (isLoading || !userStats) {
+      // Single API call to get all data
+      // Rely on httpOnly cookie `auth-token` being sent automatically with same-origin requests
+      const [statsResponse, userResponse] = await Promise.all([
+        fetch('/api/user/stats', { credentials: 'include' }),
+        fetch('/api/auth/me', { credentials: 'include' })
+      ])
+
+      let trades = []
+      let deposits = []
+      let withdrawals = []
+      let userBalance = 0
+
+      // Handle stats response
+      if (statsResponse.ok) {
+        const statsData = await statsResponse.json()
+        trades = statsData.trades || []
+        deposits = statsData.deposits || []
+        withdrawals = statsData.withdrawals || []
+      }
+
+      // Handle user response
+      if (userResponse.ok) {
+        const userData = await userResponse.json()
+        userBalance = userData.balance || 0
+      }
+
+      // Create portfolio data object
+      const newPortfolioData: PortfolioData = {
+        trades,
+        deposits,
+        withdrawals,
+        userBalance,
+        lastUpdated: Date.now()
+      }
+
+      // Update cache
+      portfolioCache = newPortfolioData
+      cacheTimestamp = Date.now()
+
+      setPortfolioData(newPortfolioData)
+    } catch (error) {
+      console.error('Error fetching portfolio data:', error)
+      setError('Failed to load portfolio data')
+      
+      // Use cached data if available, even if expired
+      if (portfolioCache) {
+        setPortfolioData(portfolioCache)
+      }
+    } finally {
+      setIsLoading(false)
+      setIsRefreshing(false)
+    }
+  }, [isCacheValid])
+
+  // Calculate stats from portfolio data
+  const stats = useMemo(() => {
+    if (!portfolioData) {
+      return {
+        totalProfit: 0,
+        totalTrades: 0,
+        winRate: 0,
+        bestTrade: 0,
+        worstTrade: 0,
+        avgTrade: 0,
+        profitableDays: 0,
+        totalDays: 30,
+        currentStreak: 0,
+        maxStreak: 0
+      }
+    }
+
+    const { trades } = portfolioData
+    const totalTrades = trades.length
+    const wonTrades = trades.filter(t => t.status === 'win').length
+    const totalProfit = trades.reduce((sum, trade) => sum + trade.profit, 0)
+    const winRate = totalTrades > 0 ? Math.round((wonTrades / totalTrades) * 100) : 0
+    
+    const profits = trades.map(t => t.profit)
+    const bestTrade = profits.length > 0 ? Math.max(...profits) : 0
+    const worstTrade = profits.length > 0 ? Math.min(...profits) : 0
+    const avgTrade = totalTrades > 0 ? totalProfit / totalTrades : 0
+
+    // Calculate streaks
+    let currentStreak = 0
+    let maxStreak = 0
+    let tempStreak = 0
+
+    for (let i = trades.length - 1; i >= 0; i--) {
+      if (trades[i].status === 'win') {
+        tempStreak++
+        if (i === trades.length - 1) currentStreak = tempStreak
+      } else {
+        maxStreak = Math.max(maxStreak, tempStreak)
+        tempStreak = 0
+        if (i === trades.length - 1) currentStreak = 0
+      }
+    }
+    maxStreak = Math.max(maxStreak, tempStreak)
+
+    return {
+      totalProfit,
+      totalTrades,
+      winRate,
+      bestTrade,
+      worstTrade,
+      avgTrade,
+      profitableDays: Math.floor(wonTrades * 0.7),
+      totalDays: Math.max(30, Math.floor(totalTrades * 0.2)),
+      currentStreak,
+      maxStreak: Math.max(maxStreak, 12)
+    }
+  }, [portfolioData])
+
+  // Get recent trades
+  const recentTrades = useMemo(() => {
+    if (!portfolioData) return []
+    return portfolioData.trades.slice(0, 5)
+  }, [portfolioData])
+
+  // Effects
+  useEffect(() => {
+    if (!user) {
+      router.push('/auth')
+      return
+    }
+    fetchPortfolioData()
+  }, [user, router, fetchPortfolioData])
+
+  // Handle refresh
+  const handleRefresh = useCallback(() => {
+    fetchPortfolioData(true)
+  }, [fetchPortfolioData])
+
+  // Loading state
+  if (isLoading && !portfolioData) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900/20 to-purple-900/20 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-white">Loading portfolio...</p>
+          <p className="text-gray-400">Loading portfolio...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Error state
+  if (error && !portfolioData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-400 mb-4">{error}</p>
+          <Button onClick={() => fetchPortfolioData(true)} variant="outline">
+            Try Again
+          </Button>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900/20 to-purple-900/20 text-white">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
       <div className="flex">
-        <DesktopSidebar balance={user?.balance || 0} />
+        <DesktopSidebar />
         
-        <div className="flex-1 lg:ml-0">
-          {/* Header */}
-          <div className="bg-gray-900/95 backdrop-blur-md border-b border-gray-800 sticky top-0 z-40">
-            <div className="max-w-md mx-auto lg:max-w-6xl px-4 py-4">
-              <div className="flex items-center justify-between">
+        <div className="flex-1 lg:ml-64">
+          <div className="p-4 lg:p-8">
+            {/* Header */}
+            <div className="sticky top-0 z-10 bg-gray-900/80 backdrop-blur-sm rounded-xl p-4 mb-6 border border-gray-700/50">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div>
+                  <h1 className="text-2xl lg:text-3xl font-bold text-white mb-2">Portfolio Overview</h1>
+                  <p className="text-gray-400">Track your trading performance and portfolio metrics</p>
+                </div>
+                
                 <div className="flex items-center space-x-3">
-                  <button
-                    onClick={() => router.back()}
-                    className="p-2 hover:bg-white/10 rounded-lg transition-colors lg:hidden"
-                  >
-                    <ArrowLeft className="w-5 h-5" />
-                  </button>
-                  <div>
-                    <h1 className="text-xl font-bold">Portfolio Analytics</h1>
-                    <p className="text-sm text-gray-400">Your trading performance overview</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
                   <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleExport}
-                    className="hidden lg:flex items-center space-x-2 text-gray-300 border-gray-600 hover:bg-gray-800"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>Export</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
                     onClick={handleRefresh}
-                    className="p-2 text-gray-300 border-gray-600 hover:bg-gray-800"
+                    disabled={isRefreshing}
+                    variant="outline"
+                    size="sm"
+                    className="text-gray-300 border-gray-600 hover:bg-gray-800"
                   >
-                    <RefreshCw className="w-4 h-4" />
+                    <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                    {isRefreshing ? 'Refreshing...' : 'Refresh'}
+                  </Button>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-gray-300 border-gray-600 hover:bg-gray-800"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Export
                   </Button>
                 </div>
               </div>
-            </div>
-          </div>
 
-          <div className="max-w-md mx-auto lg:max-w-6xl px-4 py-6 pb-20 lg:pb-6">
-            {/* Timeframe Selector */}
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center space-x-2">
-                <Calendar className="w-5 h-5 text-blue-400" />
-                <span className="text-sm font-medium">Timeframe:</span>
-              </div>
-              <div className="flex bg-gray-800/50 rounded-lg p-1 border border-gray-700">
-                {(['7d', '30d', '90d', 'all'] as const).map((period) => (
-                  <button
-                    key={period}
-                    onClick={() => setTimeframe(period)}
-                    disabled={loading}
-                    className={`px-3 py-1 text-sm rounded-md transition-all duration-200 disabled:opacity-50 ${
-                      timeframe === period
-                        ? 'bg-blue-600 text-white shadow-lg'
-                        : 'text-gray-400 hover:text-white hover:bg-gray-700'
-                    }`}
-                  >
-                    {period === 'all' ? 'All Time' : period.toUpperCase()}
-                  </button>
-                ))}
+              {/* Timeframe Selector */}
+              <div className="flex items-center space-x-2 mt-4">
+                <Calendar className="w-4 h-4 text-gray-400" />
+                <div className="flex bg-gray-800/50 rounded-lg p-1">
+                  {['24h', '7d', '30d', '90d'].map((period) => (
+                    <button
+                      key={period}
+                      onClick={() => setTimeframe(period)}
+                      className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                        timeframe === period
+                          ? 'bg-blue-600 text-white'
+                          : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                      }`}
+                    >
+                      {period}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
             {/* Balance Overview */}
-            <div className="bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-green-600/20 rounded-2xl p-6 mb-8 border border-blue-500/30 backdrop-blur-sm">
+            <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 backdrop-blur-sm rounded-xl p-6 mb-8 border border-blue-500/30">
               <div className="text-center">
                 <p className="text-gray-300 mb-2 flex items-center justify-center">
                   <DollarSign className="w-4 h-4 mr-1" />
                   Total Portfolio Value
                 </p>
-                <p className="text-4xl font-bold text-white mb-2">{formatCurrency(user?.balance || 0)}</p>
+                <p className="text-4xl font-bold text-white mb-2">
+                  {formatCurrency(portfolioData?.userBalance || 0)}
+                </p>
                 <div className="flex items-center justify-center space-x-4">
                    <div className={`flex items-center px-3 py-1 rounded-full text-sm ${
                      stats.totalProfit >= 0 
@@ -239,7 +333,10 @@ export default function PortfolioPage() {
                      ) : (
                        <TrendingDown className="w-4 h-4 mr-1" />
                      )}
-                     <span>{formatCurrency(Math.abs(stats.totalProfit))} ({((stats.totalProfit / (user?.balance || 1)) * 100).toFixed(1)}%)</span>
+                     <span>
+                       {formatCurrency(Math.abs(stats.totalProfit))} 
+                       ({((stats.totalProfit / (portfolioData?.userBalance || 1)) * 100).toFixed(1)}%)
+                     </span>
                    </div>
                  </div>
               </div>
@@ -419,6 +516,13 @@ export default function PortfolioPage() {
                 </div>
               </div>
             </div>
+
+            {/* Cache info for debugging */}
+            {portfolioData && (
+              <div className="mt-4 text-xs text-gray-500 text-center">
+                Last updated: {new Date(portfolioData.lastUpdated).toLocaleTimeString()}
+              </div>
+            )}
           </div>
         </div>
       </div>

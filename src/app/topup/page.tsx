@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -23,6 +23,8 @@ import MobileBottomNav from '@/components/MobileBottomNav'
 import DesktopSidebar from '@/components/DesktopSidebar'
 import { toast } from 'react-hot-toast'
 
+import { depositFunds } from '@/lib/firebaseFunctions'
+
 interface CryptoOption {
   id: string
   name: string
@@ -40,7 +42,7 @@ const cryptoOptions: CryptoOption[] = [
     symbol: 'BTC',
     address: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
     network: 'Bitcoin Network',
-    icon: '₿',
+    icon: 'â‚¿',
     color: 'from-orange-500 to-orange-600'
   },
   {
@@ -49,7 +51,7 @@ const cryptoOptions: CryptoOption[] = [
     symbol: 'ETH',
     address: '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d4d4',
     network: 'Ethereum (ERC-20)',
-    icon: 'Ξ',
+    icon: 'Îž',
     color: 'from-blue-500 to-blue-600'
   },
   {
@@ -67,7 +69,7 @@ const cryptoOptions: CryptoOption[] = [
     symbol: 'USDT',
     address: '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d4d4',
     network: 'Ethereum (ERC-20)',
-    icon: '₮',
+    icon: 'â‚®',
     color: 'from-green-500 to-green-600'
   }
 ]
@@ -100,51 +102,38 @@ export default function TopUpPage() {
     return num >= 500 && num <= 10000000
   }
 
-  const handleDeposit = async () => {
+    const handleDeposit = async () => {
     if (!selectedCrypto || !isValidAmount()) return
+    if (!user?.id) {
+      toast.error('Please login to submit a deposit')
+      router.push('/auth/login')
+      return
+    }
 
     setIsProcessing(true)
-    
     try {
       const depositAmount = parseFloat(amount)
-      
-      // Call the deposits API
-      const response = await fetch('/api/deposits', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          currency: selectedCrypto.symbol,
-          amount: depositAmount,
-          address: selectedCrypto.address
-        }),
+      const data = await depositFunds(depositAmount, 'crypto', {
+        currency: selectedCrypto.symbol,
+        address: selectedCrypto.address,
+        network: selectedCrypto.network || 'mainnet'
       })
 
-      const data = await response.json()
+      toast.success(data?.message || 'Deposit request submitted successfully. Waiting for admin approval.', {
+        duration: 5000,
+        icon: ''
+      })
 
-      if (response.ok && data.success) {
-        // Show success message with admin approval notice
-        toast.success(data.message || 'Deposit request submitted successfully. Waiting for admin approval.', {
-          duration: 5000,
-          icon: '⏳'
-        })
-
-        // Close modal and reset
-        setShowModal(false)
-        setSelectedCrypto(null)
-        setAmount('')
-      } else {
-        toast.error(data.error || 'Failed to submit deposit request')
-      }
+      setShowModal(false)
+      setSelectedCrypto(null)
+      setAmount('')
     } catch (error) {
       console.error('Deposit error:', error)
-      toast.error('Network error. Please try again.')
+      toast.error('Failed to submit deposit. Please try again.')
     } finally {
       setIsProcessing(false)
     }
   }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900/20 to-purple-900/20 text-white">
       <div className="flex">
@@ -390,3 +379,5 @@ export default function TopUpPage() {
     </div>
   )
 }
+
+

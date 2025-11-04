@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" fill="currentColor">
+  <rect width="200" height="60" rx="8" fill="currentColor" opacity="0.1"/>
+  <text x="20" y="35" fill="currentColor" font-size="18" font-weight="bold" font-family="Arial, sans-serif">
+    Jetonbank
+  </text>
+  <circle cx="170" cy="30" r="15" fill="currentColor" opacity="0.2"/>
+  <path d="M165 30 L170 35 L180 25" stroke="currentColor" stroke-width="2" fill="none"/>
+</svg>

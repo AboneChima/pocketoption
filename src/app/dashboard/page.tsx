@@ -8,6 +8,7 @@ import { LiveTradingChart } from '@/components/LiveTradingChart'
 import { UnifiedLoader, PageLoader } from '@/components/ui/UnifiedLoader'
 import { formatCurrency } from '@/lib/utils'
 import { toast } from 'react-hot-toast'
+import { placeTrade } from '@/lib/firebaseFunctions'
 import { 
   ChevronDown, 
   Gift, 
@@ -63,7 +64,7 @@ interface BottomTab {
 }
 
 export default function DashboardPage() {
-  const { user, logout, loading } = useAuth()
+  const { user, logout, loading, updateBalance } = useAuth()
   const router = useRouter()
   
   // Trading state
@@ -75,7 +76,7 @@ export default function DashboardPage() {
     changePercent: 0.02,
     isOTC: true
   })
-  const [balance, setBalance] = useState(1000)
+  const [balance, setBalance] = useState(0)
   const [tradeAmount, setTradeAmount] = useState(1)
   const [selectedTime, setSelectedTime] = useState(5) // seconds
   const [payoutPercent, setPayoutPercent] = useState(78)
@@ -131,7 +132,7 @@ export default function DashboardPage() {
     return calculatePayout() - tradeAmount
   }
 
-  const openTrade = (direction: 'BUY' | 'SELL') => {
+  const openTrade = async (direction: 'BUY' | 'SELL') => {
     // Validate minimum trade amount
     if (tradeAmount < 1) {
       toast.error('Minimum trade amount is $1')
@@ -180,39 +181,74 @@ export default function DashboardPage() {
       return
     }
 
-    const trade: Trade = {
-      id: Date.now().toString(),
-      pair: selectedPair.symbol,
-      direction,
-      amount: tradeAmount,
-      payout: payoutPercent / 100,
-      entry: selectedPair.price,
-      timestamp: Date.now(),
-      expiryTime: Date.now() + (selectedTime * 1000)
-    }
-
-    setActiveTrades(prev => [...prev, trade])
-    setBalance(prev => prev - tradeAmount)
     setIsTrading(true)
 
-    // Show success message
-    toast.success(
-      `${direction} order placed for $${tradeAmount.toLocaleString()} on ${selectedPair.symbol}`,
-      {
-        duration: 3000,
-        icon: direction === 'BUY' ? '📈' : '📉',
-        style: {
-          background: '#1f2937',
-          color: '#fff',
-          border: `1px solid ${direction === 'BUY' ? '#10b981' : '#ef4444'}`
-        }
-      }
-    )
+    try {
+      // Show processing message
+      toast.loading('Placing trade...', { id: 'trade-processing' })
 
-    // Simulate trade expiry
-    setTimeout(() => {
-      resolveTrade(trade.id)
-    }, selectedTime * 1000)
+      // Create trade using Firebase Cloud Function
+      const result = await placeTrade(
+        selectedPair.symbol,
+        direction === 'BUY' ? 'up' : 'down',
+        tradeAmount,
+        selectedPair.price,
+        selectedTime,
+        {
+          payout: payoutPercent / 100,
+          platform: 'web'
+        }
+      )
+
+      // Create local trade object for UI
+      const trade: Trade = {
+        id: result.tradeId || Date.now().toString(),
+        pair: selectedPair.symbol,
+        direction,
+        amount: tradeAmount,
+        payout: payoutPercent / 100,
+        entry: selectedPair.price,
+        timestamp: Date.now(),
+        expiryTime: Date.now() + (selectedTime * 1000)
+      }
+
+      setActiveTrades(prev => [...prev, trade])
+      
+      // Update local balance (will be synced with server)
+      const newBalance = balance - tradeAmount
+      setBalance(newBalance)
+      
+      // Update balance in AuthContext to keep it synchronized
+      if (updateBalance) {
+        updateBalance(newBalance)
+      }
+
+      // Show success message
+      toast.dismiss('trade-processing')
+      toast.success(
+        `${direction} order placed for $${tradeAmount.toLocaleString()} on ${selectedPair.symbol}`,
+        {
+          duration: 3000,
+          icon: direction === 'BUY' ? '📈' : '📉',
+          style: {
+            background: '#1f2937',
+            color: '#fff',
+            border: `1px solid ${direction === 'BUY' ? '#10b981' : '#ef4444'}`
+          }
+        }
+      )
+
+      // Simulate trade expiry (in real app, this would be handled by server)
+      setTimeout(() => {
+        resolveTrade(trade.id)
+      }, selectedTime * 1000)
+
+    } catch (error: any) {
+      toast.dismiss('trade-processing')
+      toast.error(error.message || 'Failed to place trade. Please try again.')
+    } finally {
+      setIsTrading(false)
+    }
   }
 
   const resolveTrade = (tradeId: string) => {
@@ -250,7 +286,13 @@ export default function DashboardPage() {
       if (isWin) {
         const profit = trade.amount * trade.payout
         const totalReturn = trade.amount + profit
-        setBalance(prev => prev + totalReturn)
+        const newBalance = balance + totalReturn
+        setBalance(newBalance)
+        
+        // Update balance in AuthContext to keep it synchronized
+        if (updateBalance) {
+          updateBalance(newBalance)
+        }
         
         // Show win notification
         toast.success(
@@ -265,6 +307,7 @@ export default function DashboardPage() {
           }
         )
       } else {
+        // For losses, no balance change needed since amount was already deducted when trade was opened
         // Show loss notification
         toast.error(
           `📉 Trade Lost. -$${trade.amount.toLocaleString()} on ${trade.pair}`,
@@ -292,10 +335,24 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
+    // Only redirect if we're sure the user is not authenticated
+    // Add a small delay to prevent race conditions during login
     if (!loading && !user) {
-      router.push('/auth/login')
+      const timer = setTimeout(() => {
+        if (!user) {
+          router.push('/auth')
+        }
+      }, 100)
+      return () => clearTimeout(timer)
     }
   }, [user, loading, router])
+
+  // Sync balance with user's actual balance
+  useEffect(() => {
+    if (user && user.balance !== undefined) {
+      setBalance(user.balance)
+    }
+  }, [user])
 
   useEffect(() => {
     // Simulate loading

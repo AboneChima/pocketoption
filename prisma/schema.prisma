@@ -11,7 +11,7 @@ datasource db {
 }
 
 model User {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  id          String   @id @map("_id") // Changed to support Firebase UIDs (no auto() or @db.ObjectId)
   email       String   @unique
   password    String
   firstName   String?
@@ -33,7 +33,7 @@ model User {
 
 model Session {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId    String   @db.ObjectId
+  userId    String   // Changed from @db.ObjectId to support Firebase UIDs
   token     String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
@@ -45,7 +45,7 @@ model Session {
 
 model Deposit {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId      String   @db.ObjectId
+  userId      String   // Changed from @db.ObjectId to support Firebase UIDs
   amount      Float
   currency    String   // USDT, BTC, ETH, BNB
   address     String
@@ -62,7 +62,7 @@ model Deposit {
 
 model Withdrawal {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId      String   @db.ObjectId
+  userId      String   // Changed from @db.ObjectId to support Firebase UIDs
   amount      Float
   currency    String
   address     String
@@ -78,7 +78,7 @@ model Withdrawal {
 
 model Trade {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId      String   @db.ObjectId
+  userId      String   // Changed from @db.ObjectId to support Firebase UIDs
   pair        String   // EUR/USD, GBP/USD, etc.
   amount      Float
   direction   String   // CALL, PUT

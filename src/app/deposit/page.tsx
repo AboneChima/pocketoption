@@ -8,6 +8,7 @@ import { toast } from 'react-hot-toast';
 import QRCode from 'react-qr-code';
 import MobileBottomNav from '@/components/MobileBottomNav';
 import DesktopSidebar from '@/components/DesktopSidebar';
+import { depositFunds } from '@/lib/firebaseFunctions';
 
 interface CryptoOption {
   id: string;
@@ -114,44 +115,58 @@ export default function DepositPage() {
 
     try {
       // Show processing message
-      toast.loading('Transaction received, awaiting network confirmation...', { id: 'deposit-processing' });
+      toast.loading('Creating deposit request...', { id: 'deposit-processing' });
 
-      // Simulate network confirmation delay
-      await new Promise(resolve => setTimeout(resolve, 5000));
-
-      // Create deposit record
-      const depositRecord = {
-        userId: user?.id,
+      // Create deposit using Firebase Cloud Function
+      const result = await depositFunds(depositAmount, 'crypto', {
         currency: selectedCrypto.symbol,
-        amount: depositAmount,
-        status: 'Confirmed',
         address: selectedCrypto.address,
-        createdAt: new Date().toISOString()
-      };
-
-      // Save to localStorage for demo purposes
-      const existingDeposits = JSON.parse(localStorage.getItem('deposits') || '[]');
-      existingDeposits.push(depositRecord);
-      localStorage.setItem('deposits', JSON.stringify(existingDeposits));
-
-      // Update user balance
-      await updateBalance(depositAmount);
-
-      // Show success message
-      toast.dismiss('deposit-processing');
-      toast.success('Deposit successful! Funds added to your account.', {
-        duration: 5000,
-        icon: '🎉'
+        network: selectedCrypto.network || 'mainnet'
       });
+
+      // Show success message with admin approval notification
+      toast.dismiss('deposit-processing');
+      toast.success(
+        'Deposit request submitted successfully! 🎉\n\nYour deposit is now pending admin approval. You will be notified once it\'s processed.',
+        {
+          duration: 8000,
+          icon: '⏳',
+          style: {
+            background: '#1e2435',
+            color: '#fff',
+            border: '1px solid #2a3441',
+            borderRadius: '12px',
+            padding: '16px',
+            maxWidth: '400px',
+          },
+        }
+      );
+
+      // Also show an info toast about the process
+      setTimeout(() => {
+        toast(
+          '💡 Tip: Admin approval usually takes 5-15 minutes during business hours.',
+          {
+            duration: 6000,
+            icon: 'ℹ️',
+            style: {
+              background: '#1e40af',
+              color: '#fff',
+              border: '1px solid #3b82f6',
+              borderRadius: '12px',
+            },
+          }
+        );
+      }, 2000);
 
       // Close modal and reset
       setShowModal(false);
       setSelectedCrypto(null);
       setAmount('');
       
-    } catch (error) {
+    } catch (error: any) {
       toast.dismiss('deposit-processing');
-      toast.error('Deposit failed. Please try again.');
+      toast.error(error.message || 'Deposit failed. Please try again.');
     } finally {
       setIsProcessing(false);
     }

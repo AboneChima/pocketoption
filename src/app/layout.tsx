@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PocketOption - Trading Platform",
-  description: "Professional forex trading simulation platform",
+  title: "Pocketoption-m.com - Trading Platform",
+  description: "Professional forex trading simulation platform - Pocketoption-m.com",
 };
 
 export default function RootLayout({

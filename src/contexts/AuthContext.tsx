@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { mockApi, mockData } from '@/lib/mockData'
 
 interface User {
   id: string
@@ -19,8 +20,8 @@ interface User {
 interface AuthContextType {
   user: User | null
   loading: boolean
-  login: (email: string, password: string) => Promise<void>
-  register: (data: RegisterData) => Promise<void>
+  login: (email: string, password: string) => Promise<{success: boolean, message?: string}>
+  register: (data: RegisterData) => Promise<{success: boolean, message?: string}>
   logout: () => Promise<void>
   refreshUser: () => Promise<void>
   updateBalance: (amount: number) => Promise<void>
@@ -42,10 +43,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshUser = async () => {
     try {
+      // First, try to get user data from API
       const response = await fetch('/api/auth/me')
       if (response.ok) {
-        const data = await response.json()
-        setUser(data.user)
+        const userData = await response.json()
+        setUser({
+          id: userData.id,
+          email: userData.email,
+          firstName: userData.firstName || '',
+          lastName: userData.lastName || '',
+          balance: userData.balance || 0, // Always use API balance
+          isAdmin: userData.email === 'admin@pocketoption.com',
+          kycStatus: 'verified',
+          createdAt: userData.createdAt || new Date().toISOString(),
+          phone: userData.phone || '',
+          location: userData.location || ''
+        })
+        return
+      }
+
+      // Clear localStorage to remove old cached data
+      localStorage.removeItem('pocketoption_current_user')
+      localStorage.removeItem('pocketoption_users')
+      
+      // Fallback to localStorage for demo purposes, but ensure zero balance
+      const currentUser = localStorage.getItem('pocketoption_current_user')
+      if (currentUser) {
+        const userData = JSON.parse(currentUser)
+        // Force balance to 0 to override any old cached data
+        userData.balance = 0
+        localStorage.setItem('pocketoption_current_user', JSON.stringify(userData))
+        
+        setUser({
+          id: userData.id,
+          email: userData.email,
+          firstName: userData.name?.split(' ')[0] || '',
+          lastName: userData.name?.split(' ')[1] || '',
+          balance: 0, // Always start with 0 balance
+          isAdmin: userData.email === 'admin@pocketoption.com',
+          kycStatus: 'verified',
+          createdAt: userData.createdAt || new Date().toISOString(),
+          phone: userData.phone || '',
+          location: userData.country || ''
+        })
       } else {
         setUser(null)
       }
@@ -56,44 +96,139 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const login = async (email: string, password: string) => {
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email, password }),
-    })
+    try {
+      setLoading(true)
+      
+      // Clear any existing localStorage data first
+      localStorage.removeItem('pocketoption_current_user')
+      localStorage.removeItem('pocketoption_users')
+      
+      // Try API first
+      try {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email, password }),
+        })
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Login failed')
+        const result = await response.json()
+        
+        if (response.ok) {
+          if (result.success && result.user) {
+            // Use the actual balance from the API response
+            const authenticatedUser = { 
+              ...result.user, 
+              balance: result.user.balance || 0 
+            }
+            setUser(authenticatedUser)
+            localStorage.setItem('pocketoption_current_user', JSON.stringify(authenticatedUser))
+            return { success: true }
+          } else {
+            return { success: false, message: result.message || 'Login failed' }
+          }
+        } else {
+          return { success: false, message: result.message || 'Login failed' }
+        }
+      } catch (apiError) {
+        // Fallback to mock API if API fails
+      }
+
+      // Fallback to mock API if API fails
+      const result = await mockApi.login(email, password)
+      if (result.success && result.user) {
+        // Map mock user data to User interface structure
+        const mappedUser: User = {
+          id: result.user.id,
+          email: result.user.email,
+          firstName: result.user.name?.split(' ')[0] || '',
+          lastName: result.user.name?.split(' ')[1] || '',
+          balance: 0, // Always start with 0 balance
+          isAdmin: result.user.email === 'admin@pocketoption.com',
+          kycStatus: 'verified',
+          createdAt: (result.user as any).createdAt || new Date().toISOString(),
+          phone: (result.user as any).phone || '',
+          location: result.user.location || ''
+        }
+        setUser(mappedUser)
+        localStorage.setItem('pocketoption_current_user', JSON.stringify(mappedUser))
+        return { success: true }
+      } else {
+        return { success: false, message: (result as any).message || 'Login failed' }
+      }
+    } catch (error) {
+      console.error('Login error:', error)
+      return { success: false, message: 'Login failed' }
+    } finally {
+      setLoading(false)
     }
-
-    const data = await response.json()
-    setUser(data.user)
   }
 
   const register = async (data: RegisterData) => {
-    const response = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    })
+    try {
+      setLoading(true)
+      
+      // Clear any existing localStorage data first
+      localStorage.removeItem('pocketoption_current_user')
+      localStorage.removeItem('pocketoption_users')
+      
+      // Try API first
+      try {
+        const response = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data),
+        })
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Registration failed')
+        if (response.ok) {
+          const result = await response.json()
+          if (result.success && result.user) {
+            const userWithZeroBalance = { ...result.user, balance: 0 }
+            setUser(userWithZeroBalance)
+            localStorage.setItem('pocketoption_current_user', JSON.stringify(userWithZeroBalance))
+            return { success: true }
+          }
+        }
+      } catch (apiError) {
+        console.log('API registration failed, falling back to mock API')
+      }
+
+      // Fallback to mock API if API fails
+      const result = await mockApi.register(data.firstName || '', data.email, data.password)
+      if (result.success && result.user) {
+        // Map mock user data to User interface structure
+        const mappedUser: User = {
+          id: result.user.id,
+          email: result.user.email,
+          firstName: result.user.name?.split(' ')[0] || data.firstName || '',
+          lastName: result.user.name?.split(' ')[1] || data.lastName || '',
+          balance: 0, // Always start with 0 balance
+          isAdmin: result.user.email === 'admin@pocketoption.com',
+          kycStatus: 'verified',
+          createdAt: (result.user as any).createdAt || new Date().toISOString(),
+          phone: (result.user as any).phone || '',
+          location: result.user.location || ''
+        }
+        setUser(mappedUser)
+        localStorage.setItem('pocketoption_current_user', JSON.stringify(mappedUser))
+        return { success: true }
+      } else {
+        return { success: false, message: (result as any).message || 'Registration failed' }
+      }
+    } catch (error) {
+      console.error('Registration error:', error)
+      return { success: false, message: 'Registration failed' }
+    } finally {
+      setLoading(false)
     }
-
-    const result = await response.json()
-    setUser(result.user)
   }
 
   const logout = async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' })
+      await mockApi.logout()
       setUser(null)
       // Redirect to landing page after logout
       router.push('/')
@@ -109,26 +244,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!user) return
     
     try {
-      // Update balance locally first for immediate UI feedback
-      setUser(prev => prev ? { ...prev, balance: prev.balance + amount } : null)
+      // Update balance locally and persist to localStorage
+      const updatedUser = { ...user, balance: user.balance + amount }
+      setUser(updatedUser)
       
-      // Then sync with backend (optional for demo)
-      const response = await fetch('/api/user/balance', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ amount }),
-      })
-      
-      if (!response.ok) {
-        // If backend fails, revert the local change
-        setUser(prev => prev ? { ...prev, balance: prev.balance - amount } : null)
-        throw new Error('Failed to update balance')
+      // Update the stored user data
+      const currentUser = localStorage.getItem('pocketoption_current_user')
+      if (currentUser) {
+        const userData = JSON.parse(currentUser)
+        userData.balance = updatedUser.balance
+        localStorage.setItem('pocketoption_current_user', JSON.stringify(userData))
+        
+        // Also update in users array
+        const users = localStorage.getItem('pocketoption_users')
+        if (users) {
+          const usersArray = JSON.parse(users)
+          const userIndex = usersArray.findIndex((u: any) => u.id === userData.id)
+          if (userIndex !== -1) {
+            usersArray[userIndex].balance = updatedUser.balance
+            localStorage.setItem('pocketoption_users', JSON.stringify(usersArray))
+          }
+        }
       }
+      
+      // Simulate API call for demo purposes
+      await mockApi.getUserBalance()
     } catch (error) {
       console.error('Failed to update balance:', error)
-      // Balance already reverted above if needed
+      // Revert the change if needed
+      setUser(user)
     }
   }
 

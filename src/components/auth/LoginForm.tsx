@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/Button'
@@ -14,6 +14,9 @@ interface LoginFormProps {
 export const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
   const { login } = useAuth()
   const router = useRouter()
+  const redirectTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const backupTimerRef = useRef<NodeJS.Timeout | null>(null)
+  
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -22,6 +25,18 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (redirectTimerRef.current) {
+        clearTimeout(redirectTimerRef.current)
+      }
+      if (backupTimerRef.current) {
+        clearTimeout(backupTimerRef.current)
+      }
+    }
+  }, [])
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
@@ -51,17 +66,44 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
     setErrors({})
 
     try {
-      await login(formData.email, formData.password)
+      const result = await login(formData.email, formData.password)
       
-      // Show success message
-      setSuccess(true)
-      
-      // Redirect to dashboard after 1.5 seconds
-      setTimeout(() => {
-        router.push('/dashboard')
-      }, 1500)
+      if (result && result.success) {
+        setSuccess(true)
+        
+        // Clear any existing timers
+        if (redirectTimerRef.current) {
+          clearTimeout(redirectTimerRef.current)
+        }
+        if (backupTimerRef.current) {
+          clearTimeout(backupTimerRef.current)
+        }
+        
+        // Redirect to dashboard after 1 second
+        redirectTimerRef.current = setTimeout(() => {
+          try {
+            router.push('/dashboard')
+          } catch (error) {
+            // Fallback to window.location if router.push fails
+            window.location.href = '/dashboard'
+          }
+        }, 1000)
+        
+        // Also set a backup redirect in case the first one fails
+        backupTimerRef.current = setTimeout(() => {
+          if (window.location.pathname !== '/dashboard') {
+            window.location.href = '/dashboard'
+          }
+        }, 3000)
+        
+      } else {
+        setErrors({ 
+          general: result?.message || 'Login failed. Please check your credentials.' 
+        })
+      }
       
     } catch (error: any) {
+      console.error('Login error:', error)
       setErrors({ 
         general: error.message || 'Login failed. Please check your credentials.' 
       })

@@ -1,77 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server'
-import jwt from 'jsonwebtoken'
-import { prisma } from '@/lib/db'
-import { createDatabaseUnavailableResponse, requireDatabase } from '@/lib/api-helpers'
+import { adminDb } from '@/lib/firebaseAdmin'
+import { COLLECTIONS } from '@/lib/firebase'
 
-// Middleware to verify admin access
-async function verifyAdmin(request: NextRequest) {
-  const authHeader = request.headers.get('authorization')
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null
-  }
-
-  const token = authHeader.substring(7)
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any
-    const db = requireDatabase()
-    
-    const user = await db.user.findUnique({
-      where: { id: decoded.userId }
-    })
-
-    if (!user || !user.isAdmin) {
-      return null
-    }
-
-    return user
-  } catch (error) {
-    return null
-  }
-}
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    if (!prisma) {
-      return createDatabaseUnavailableResponse()
-    }
+    const { searchParams } = new URL(request.url)
+    const limitParam = Number(searchParams.get('limit')) || 100
+    const limit = Math.min(Math.max(limitParam, 1), 1000)
 
-    const admin = await verifyAdmin(request)
-    if (!admin) {
-      return NextResponse.json(
-        { error: 'Unauthorized - Admin access required' },
-        { status: 401 }
-      )
-    }
+    const snapshot = await adminDb
+      .collection(COLLECTIONS.USERS)
+      .orderBy('createdAt', 'desc')
+      .limit(limit)
+      .get()
 
-    const db = requireDatabase()
-    const users = await db.user.findMany({
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        balance: true,
-        isAdmin: true,
-        createdAt: true
-      },
-      orderBy: {
-        createdAt: 'desc'
+    const users = snapshot.docs.map((doc) => {
+      const data = doc.data() || {}
+      return {
+        id: data.id || doc.id,
+        email: data.email || '',
+        firstName: data.firstName || '',
+        lastName: data.lastName || '',
+        balance: data.balance ?? 0,
+        isAdmin: !!data.isAdmin,
+        kycStatus: data.kycStatus || 'pending',
+        createdAt: data.createdAt || new Date().toISOString(),
       }
     })
 
-    // Transform users to match frontend expectations
-    const transformedUsers = users.map(user => ({
-      ...user,
-      name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
-      role: user.isAdmin ? 'admin' : 'user'
-    }))
-
-    return NextResponse.json({ users: transformedUsers })
-
-  } catch (error) {
-    console.error('Admin users fetch error:', error)
+    return NextResponse.json({ users })
+  } catch (error: any) {
+    console.error('Error fetching users:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: error?.message || 'Failed to fetch users' },
       { status: 500 }
     )
   }

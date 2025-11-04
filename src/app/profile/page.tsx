@@ -47,15 +47,16 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false)
   const [copied, setCopied] = useState(false)
   const [userStats, setUserStats] = useState<any>(null)
+  const [userBalance, setUserBalance] = useState<number>(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetchUserStats()
+    fetchUserBalance()
   }, [])
 
   const fetchUserStats = async () => {
     try {
-      setLoading(true)
       const response = await fetch('/api/user/stats')
       if (response.ok) {
         const stats = await response.json()
@@ -63,6 +64,20 @@ export default function ProfilePage() {
       }
     } catch (error) {
       console.error('Error fetching user stats:', error)
+    }
+  }
+
+  const fetchUserBalance = async () => {
+    try {
+      setLoading(true)
+      const response = await fetch('/api/auth/me')
+      if (response.ok) {
+        const userData = await response.json()
+        setUserBalance(userData.balance || 0)
+      }
+    } catch (error) {
+      console.error('Error fetching user balance:', error)
+      setUserBalance(0)
     } finally {
       setLoading(false)
     }
@@ -74,9 +89,11 @@ export default function ProfilePage() {
   }
 
   const copyUserId = () => {
-    navigator.clipboard.writeText(user?.id || 'USER123456')
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    if (user?.id) {
+      navigator.clipboard.writeText(user.id)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
   }
 
   const accountMenuItems = [
@@ -150,7 +167,7 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900/20 to-purple-900/20 text-white">
       <div className="flex">
-        <DesktopSidebar balance={user?.balance || 0} />
+        <DesktopSidebar balance={userBalance} />
         
         <div className="flex-1 lg:ml-0">
           {/* Header */}
@@ -228,7 +245,7 @@ export default function ProfilePage() {
                               month: 'short', 
                               year: 'numeric' 
                             })
-                          : 'Jan 2024'
+                          : 'Recently'
                         }
                       </span>
                     </div>
@@ -238,7 +255,7 @@ export default function ProfilePage() {
                   <div className="flex items-center space-x-2 mb-4">
                     <span className="text-sm text-gray-400">User ID:</span>
                     <code className="text-sm bg-gray-800/50 px-2 py-1 rounded border border-gray-600">
-                      {user?.id || 'USER123456'}
+                      {user?.id || 'Not available'}
                     </code>
                     <button
                       onClick={copyUserId}
@@ -312,7 +329,7 @@ export default function ProfilePage() {
                     </div>
                     <div className="flex-1">
                       <p className="text-sm text-gray-400 mb-1">Email Address</p>
-                      <p className="font-medium">{user?.email || 'john.doe@example.com'}</p>
+                      <p className="font-medium">{user?.email || 'Not provided'}</p>
                     </div>
                   </div>
                   
@@ -350,7 +367,7 @@ export default function ProfilePage() {
                     </div>
                     <div className="flex-1">
                       <p className="text-sm text-gray-400 mb-1">Account Balance</p>
-                      <p className="font-medium text-green-400">{formatCurrency(user?.balance || 0)}</p>
+                      <p className="font-medium text-green-400">{formatCurrency(userBalance)}</p>
                     </div>
                   </div>
                 </div>

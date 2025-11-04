@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 60" fill="currentColor">
+  <rect width="150" height="60" rx="8" fill="currentColor" opacity="0.1"/>
+  <text x="20" y="35" fill="currentColor" font-size="18" font-weight="bold" font-family="Arial, sans-serif">
+    bKash
+  </text>
+  <circle cx="125" cy="30" r="12" fill="currentColor" opacity="0.3"/>
+  <text x="125" y="35" text-anchor="middle" fill="currentColor" font-size="10" font-weight="bold">b</text>
+</svg>
