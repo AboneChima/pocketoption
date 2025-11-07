@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { ConditionalAuthProvider } from "@/components/ConditionalAuthProvider";
 import { Toaster } from "react-hot-toast";
 import "./globals.css";
 
@@ -17,6 +17,13 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Pocketoption-m.com - Trading Platform",
   description: "Professional forex trading simulation platform - Pocketoption-m.com",
+  themeColor: "#0F1419",
+  colorScheme: "dark",
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+  },
 };
 
 export default function RootLayout({
@@ -25,13 +32,29 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark" style={{ colorScheme: 'dark' }}>
+      <head>
+        <meta name="color-scheme" content="dark" />
+        <meta name="theme-color" content="#0F1419" />
+        <style dangerouslySetInnerHTML={{
+          __html: `
+            * {
+              color-scheme: dark;
+            }
+            html, body {
+              background-color: #0F1419;
+              color: #ffffff;
+            }
+          `
+        }} />
+      </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#0F1419] text-white`}
+        style={{ colorScheme: 'dark', backgroundColor: '#0F1419' }}
       >
-        <AuthProvider>
+        <ConditionalAuthProvider>
           {children}
-        </AuthProvider>
+        </ConditionalAuthProvider>
         <Toaster
           position="top-right"
           toastOptions={{

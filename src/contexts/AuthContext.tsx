@@ -40,6 +40,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
+  const [isAdminRoute, setIsAdminRoute] = useState(false)
+
+  // Check if current route is admin route
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setIsAdminRoute(window.location.pathname.startsWith('/admin'))
+    }
+  }, [])
 
   const refreshUser = async () => {
     try {
