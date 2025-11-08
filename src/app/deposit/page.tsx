@@ -29,9 +29,9 @@ const cryptoOptions: CryptoOption[] = [
     symbol: 'USDT',
     icon: '₮',
     address: 'TJxZA88VxvCyfe4JDcbXXEVYrsRWPMxWUN',
-    minAmount: 500,
+    minAmount: 10,
     maxAmount: 10000000,
-    gradient: 'from-green-400 to-green-600',
+    gradient: 'from-green-500 to-emerald-600',
     network: 'TRC20'
   },
   {
@@ -40,19 +40,9 @@ const cryptoOptions: CryptoOption[] = [
     symbol: 'BTC',
     icon: '₿',
     address: 'bc1qfej7ukyjvy5peatf8tw8xp20gvp23nuhxrt636',
-    minAmount: 500,
+    minAmount: 10,
     maxAmount: 10000000,
-    gradient: 'from-orange-400 to-orange-600'
-  },
-  {
-    id: 'bnb',
-    name: 'BNB',
-    symbol: 'BNB',
-    icon: 'B',
-    address: '0xED1bc43b0aE3948669Bc53087256E7fD3584a1Dc',
-    minAmount: 500,
-    maxAmount: 10000000,
-    gradient: 'from-yellow-400 to-yellow-600'
+    gradient: 'from-orange-500 to-amber-600'
   },
   {
     id: 'eth',
@@ -60,9 +50,19 @@ const cryptoOptions: CryptoOption[] = [
     symbol: 'ETH',
     icon: 'Ξ',
     address: '0xED1bc43b0aE3948669Bc53087256E7fD3584a1Dc',
-    minAmount: 500,
+    minAmount: 10,
     maxAmount: 10000000,
-    gradient: 'from-blue-400 to-blue-600'
+    gradient: 'from-blue-500 to-indigo-600'
+  },
+  {
+    id: 'bnb',
+    name: 'BNB',
+    symbol: 'BNB',
+    icon: 'B',
+    address: '0xED1bc43b0aE3948669Bc53087256E7fD3584a1Dc',
+    minAmount: 10,
+    maxAmount: 10000000,
+    gradient: 'from-yellow-500 to-orange-600'
   }
 ];
 
@@ -114,15 +114,39 @@ export default function DepositPage() {
     setIsProcessing(true);
 
     try {
+      // Check if user is authenticated
+      if (!user || !user.id) {
+        toast.error('Please login to make a deposit');
+        return;
+      }
+
       // Show processing message
       toast.loading('Creating deposit request...', { id: 'deposit-processing' });
 
-      // Create deposit using Firebase Cloud Function
-      const result = await depositFunds(depositAmount, 'crypto', {
-        currency: selectedCrypto.symbol,
-        address: selectedCrypto.address,
-        network: selectedCrypto.network || 'mainnet'
+      // Create deposit directly via API with user ID from AuthContext
+      const response = await fetch('/api/firebase/deposit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          amount: depositAmount,
+          method: 'crypto',
+          metadata: {
+            currency: selectedCrypto.symbol,
+            address: selectedCrypto.address,
+            network: selectedCrypto.network || 'mainnet'
+          }
+        }),
       });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create deposit request');
+      }
+
+      const result = await response.json();
 
       // Show success message with admin approval notification
       toast.dismiss('deposit-processing');
@@ -181,75 +205,93 @@ export default function DepositPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0F1419] via-[#12192A] to-[#1A2332] text-white flex">
-      {/* Desktop Sidebar */}
+    <div className="min-h-screen bg-gradient-to-br from-[#0F1419] via-[#12192A] to-[#1A2332] text-white">
       <DesktopSidebar balance={user?.balance || 0} />
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col pb-20 lg:pb-0">
+      <div className="lg:ml-64 flex flex-col min-h-screen pb-20 lg:pb-0">
         {/* Header */}
-        <header className="bg-gradient-to-r from-[#12192A] to-[#1A2332] border-b border-[#1e2435] px-4 lg:px-8 py-4">
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => router.back()}
-              className="lg:hidden p-2 hover:bg-[#1e2435] rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div>
-              <h1 className="text-xl lg:text-2xl font-bold">Deposit Funds</h1>
-              <p className="text-gray-400 text-sm">Choose your preferred cryptocurrency</p>
+        <header className="bg-gradient-to-r from-[#12192A] to-[#1A2332] border-b border-[#1e2435] px-4 lg:px-8 py-4 lg:py-6 shadow-lg">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => router.back()}
+                className="lg:hidden p-2 hover:bg-[#1e2435] rounded-lg transition-colors"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div>
+                <h1 className="text-xl lg:text-2xl font-bold">Deposit Funds</h1>
+                <p className="text-gray-400 text-sm">Choose your preferred cryptocurrency</p>
+              </div>
             </div>
           </div>
         </header>
 
-        {/* Content */}
-        <div className="flex-1 p-4 lg:p-8">
-          <div className="max-w-4xl mx-auto">
-            {/* Crypto Selection Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-              {cryptoOptions.map((crypto) => (
-                <button
-                  key={crypto.id}
-                  onClick={() => handleCryptoSelect(crypto)}
-                  className="group relative bg-gradient-to-br from-[#1e2435] to-[#252d42] border border-[#2a3441] rounded-xl p-6 hover:border-[#3b82f6] transition-all duration-300 hover:scale-105"
-                >
-                  <div className={`absolute inset-0 bg-gradient-to-br ${crypto.gradient} opacity-0 group-hover:opacity-10 rounded-xl transition-opacity duration-300`} />
-                  
-                  <div className="relative z-10 text-center">
-                    <div className={`w-12 h-12 mx-auto mb-3 bg-gradient-to-br ${crypto.gradient} rounded-full flex items-center justify-center text-white font-bold text-xl shadow-lg`}>
-                      {crypto.icon}
+        {/* Main Content */}
+        <main className="flex-1 p-4 lg:p-8 overflow-y-auto">
+          <div className="max-w-7xl mx-auto space-y-6">
+            {/* Info Banner */}
+            <div className="mb-8 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 border border-blue-500/20 rounded-2xl p-6">
+              <div className="flex items-start space-x-4">
+                <div className="p-3 bg-blue-500/20 rounded-xl">
+                  <Info className="w-6 h-6 text-blue-400" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-white mb-3">Quick Deposit Info</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-[#1e2435]/50 rounded-lg p-3">
+                      <p className="text-xs text-gray-400 mb-1">Minimum</p>
+                      <p className="text-lg font-bold text-green-400">$500</p>
                     </div>
-                    <h3 className="font-semibold text-white mb-1">{crypto.name}</h3>
-                    <p className="text-gray-400 text-sm">{crypto.symbol}</p>
-                    {crypto.network && (
-                      <span className="inline-block mt-2 px-2 py-1 bg-[#3b82f6] bg-opacity-20 text-[#3b82f6] text-xs rounded-full">
-                        {crypto.network}
-                      </span>
-                    )}
+                    <div className="bg-[#1e2435]/50 rounded-lg p-3">
+                      <p className="text-xs text-gray-400 mb-1">Processing Fee</p>
+                      <p className="text-lg font-bold text-green-400">0%</p>
+                    </div>
+                    <div className="bg-[#1e2435]/50 rounded-lg p-3">
+                      <p className="text-xs text-gray-400 mb-1">Network Fee</p>
+                      <p className="text-lg font-bold text-green-400">0%</p>
+                    </div>
+                    <div className="bg-[#1e2435]/50 rounded-lg p-3">
+                      <p className="text-xs text-gray-400 mb-1">Processing</p>
+                      <p className="text-lg font-bold text-blue-400">Instant</p>
+                    </div>
                   </div>
-                </button>
-              ))}
-            </div>
-
-            {/* Info Section */}
-            <div className="mt-8 bg-gradient-to-br from-[#1e2435] to-[#252d42] border border-[#2a3441] rounded-xl p-6">
-              <div className="flex items-start space-x-3">
-                <Info className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" />
-                <div>
-                  <h3 className="font-semibold text-white mb-2">Deposit Information</h3>
-                  <ul className="text-gray-300 text-sm space-y-1">
-                    <li>• Minimum deposit: $500</li>
-                    <li>• Maximum deposit: $10,000,000</li>
-                    <li>• Processing fee: 0%</li>
-                    <li>• Network fee: 0%</li>
-                    <li>• Funds are credited instantly after confirmation</li>
-                  </ul>
                 </div>
               </div>
             </div>
+
+            {/* Crypto Selection Cards */}
+            <div>
+              <h2 className="text-2xl font-bold text-white mb-6 text-center">Choose Payment Method</h2>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+                {cryptoOptions.map((crypto) => (
+                  <button
+                    key={crypto.id}
+                    onClick={() => handleCryptoSelect(crypto)}
+                    className="group relative bg-gradient-to-br from-[#1e2435] to-[#252d42] border border-[#2a3441] rounded-2xl p-6 hover:border-blue-500/50 transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-blue-500/10"
+                  >
+                    <div className={`absolute inset-0 bg-gradient-to-br ${crypto.gradient} opacity-0 group-hover:opacity-10 rounded-2xl transition-opacity duration-300`} />
+                    
+                    <div className="relative z-10 text-center">
+                      <div className={`w-16 h-16 mx-auto mb-4 bg-gradient-to-br ${crypto.gradient} rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-lg group-hover:scale-110 transition-transform duration-300`}>
+                        {crypto.icon}
+                      </div>
+                      <h3 className="font-bold text-white mb-1 text-lg">{crypto.name}</h3>
+                      <p className="text-gray-400 text-sm mb-2">{crypto.symbol}</p>
+                      {crypto.network && (
+                        <span className="inline-block px-3 py-1 bg-blue-500/20 text-blue-400 text-xs rounded-full border border-blue-500/30">
+                          {crypto.network}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
+        </main>
+
+        <MobileBottomNav />
       </div>
 
       {/* Deposit Modal */}
@@ -365,9 +407,6 @@ export default function DepositPage() {
           </div>
         </div>
       )}
-
-      {/* Mobile Bottom Navigation */}
-      <MobileBottomNav />
     </div>
   );
 }

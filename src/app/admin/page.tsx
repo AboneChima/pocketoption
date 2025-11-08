@@ -103,16 +103,27 @@ export default function AdminPage() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [adminEmail, setAdminEmail] = useState<string>('')
   const [isAuthChecking, setIsAuthChecking] = useState(true)
+  const [showNotifications, setShowNotifications] = useState(false)
 
   // Check admin authentication
   useEffect(() => {
+    console.log('Admin page: Checking authentication...')
     const isAuthenticated = localStorage.getItem('admin_authenticated')
     const storedEmail = localStorage.getItem('admin_email')
     
+    console.log('Admin auth check:', {
+      isAuthenticated,
+      storedEmail,
+      isTrue: isAuthenticated === 'true'
+    })
+    
     if (!isAuthenticated || isAuthenticated !== 'true') {
+      console.log('Not authenticated, redirecting to login...')
       router.push('/admin/login')
       return
     }
+    
+    console.log('Authenticated! Loading admin panel...')
     
     if (storedEmail) {
       setAdminEmail(storedEmail)
@@ -396,14 +407,79 @@ export default function AdminPage() {
               </div>
 
               <div className="flex items-center space-x-2 sm:space-x-4">
-                <button className="p-2 sm:p-2.5 rounded-xl bg-[#1e2435] hover:bg-[#252d42] transition-colors relative">
-                  <Bell className="w-5 h-5 text-gray-400" />
-                  {(stats.pendingDeposits + stats.pendingWithdrawals) > 0 && (
-                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-xs text-white font-bold">
-                      {stats.pendingDeposits + stats.pendingWithdrawals}
-                    </span>
+                <div className="relative">
+                  <button 
+                    onClick={() => setShowNotifications(!showNotifications)}
+                    className="p-2 sm:p-2.5 rounded-xl bg-[#1e2435] hover:bg-[#252d42] transition-colors relative"
+                  >
+                    <Bell className="w-5 h-5 text-gray-400" />
+                    {(stats.pendingDeposits + stats.pendingWithdrawals) > 0 && (
+                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-xs text-white font-bold animate-pulse">
+                        {stats.pendingDeposits + stats.pendingWithdrawals}
+                      </span>
+                    )}
+                  </button>
+                  
+                  {/* Notifications Dropdown */}
+                  {showNotifications && (
+                    <div className="absolute right-0 mt-2 w-80 bg-[#12192A] border border-[#1e2435] rounded-xl shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="p-4 border-b border-[#1e2435]">
+                        <h3 className="text-sm font-semibold text-white">Notifications</h3>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {stats.pendingDeposits + stats.pendingWithdrawals} pending actions
+                        </p>
+                      </div>
+                      <div className="max-h-96 overflow-y-auto">
+                        {stats.pendingDeposits > 0 && (
+                          <button
+                            onClick={() => {
+                              setActiveTab('deposits')
+                              setShowNotifications(false)
+                            }}
+                            className="w-full p-4 hover:bg-[#1e2435] transition-colors text-left border-b border-[#1e2435]"
+                          >
+                            <div className="flex items-center space-x-3">
+                              <div className="p-2 bg-yellow-500/20 rounded-lg">
+                                <DollarSign className="w-5 h-5 text-yellow-400" />
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-white">Pending Deposits</p>
+                                <p className="text-xs text-gray-400">{stats.pendingDeposits} deposits awaiting approval</p>
+                              </div>
+                              <ChevronRight className="w-4 h-4 text-gray-400" />
+                            </div>
+                          </button>
+                        )}
+                        {stats.pendingWithdrawals > 0 && (
+                          <button
+                            onClick={() => {
+                              setActiveTab('withdrawals')
+                              setShowNotifications(false)
+                            }}
+                            className="w-full p-4 hover:bg-[#1e2435] transition-colors text-left border-b border-[#1e2435]"
+                          >
+                            <div className="flex items-center space-x-3">
+                              <div className="p-2 bg-red-500/20 rounded-lg">
+                                <TrendingDown className="w-5 h-5 text-red-400" />
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-white">Pending Withdrawals</p>
+                                <p className="text-xs text-gray-400">{stats.pendingWithdrawals} withdrawals need processing</p>
+                              </div>
+                              <ChevronRight className="w-4 h-4 text-gray-400" />
+                            </div>
+                          </button>
+                        )}
+                        {(stats.pendingDeposits + stats.pendingWithdrawals) === 0 && (
+                          <div className="p-8 text-center">
+                            <Bell className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                            <p className="text-sm text-gray-400">No pending notifications</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   )}
-                </button>
+                </div>
                 <button
                   onClick={fetchAdminData}
                   disabled={isRefreshing}
@@ -547,34 +623,65 @@ export default function AdminPage() {
                     </div>
                   </div>
                   <div className="p-6 space-y-3 max-h-96 overflow-y-auto">
-                    {trades.slice(0, 8).map((trade, index) => (
-                      <div key={trade.id} className="flex items-center justify-between p-4 bg-[#1e2435]/50 rounded-xl hover:bg-[#1e2435] transition-all duration-300 group">
-                        <div className="flex items-center space-x-4">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                            trade.status === 'WON' ? 'bg-green-500/20' :
-                            trade.status === 'LOST' ? 'bg-red-500/20' : 'bg-yellow-500/20'
-                          }`}>
-                            {trade.status === 'WON' ? <TrendingUp className="w-5 h-5 text-green-400" /> :
-                             trade.status === 'LOST' ? <TrendingDown className="w-5 h-5 text-red-400" /> :
-                             <Clock className="w-5 h-5 text-yellow-400" />}
+                    {(() => {
+                      // Combine all activities
+                      const allActivities = [
+                        ...trades.map(t => ({ ...t, type: 'trade', timestamp: t.createdAt })),
+                        ...deposits.map(d => ({ ...d, type: 'deposit', timestamp: d.createdAt })),
+                        ...withdrawals.map(w => ({ ...w, type: 'withdrawal', timestamp: w.createdAt }))
+                      ]
+                      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                      .slice(0, 10)
+
+                      if (allActivities.length === 0) {
+                        return (
+                          <div className="text-center py-12">
+                            <Activity className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+                            <p className="text-gray-400 text-lg mb-2">No recent activity</p>
+                            <p className="text-gray-500 text-sm">Platform activity will appear here</p>
                           </div>
-                          <div>
-                            <p className="text-sm font-medium text-white">{trade.pair}</p>
-                            <p className="text-xs text-gray-400">{trade.user.email}</p>
+                        )
+                      }
+
+                      return allActivities.map((activity: any) => (
+                        <div key={activity.id} className="flex items-center justify-between p-4 bg-[#1e2435]/50 rounded-xl hover:bg-[#1e2435] transition-all duration-300 group">
+                          <div className="flex items-center space-x-4">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                              activity.type === 'deposit' ? 'bg-green-500/20' :
+                              activity.type === 'withdrawal' ? 'bg-red-500/20' :
+                              activity.status === 'WON' ? 'bg-green-500/20' :
+                              activity.status === 'LOST' ? 'bg-red-500/20' : 'bg-yellow-500/20'
+                            }`}>
+                              {activity.type === 'deposit' ? <DollarSign className="w-5 h-5 text-green-400" /> :
+                               activity.type === 'withdrawal' ? <TrendingDown className="w-5 h-5 text-red-400" /> :
+                               activity.status === 'WON' ? <TrendingUp className="w-5 h-5 text-green-400" /> :
+                               activity.status === 'LOST' ? <TrendingDown className="w-5 h-5 text-red-400" /> :
+                               <Clock className="w-5 h-5 text-yellow-400" />}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-white">
+                                {activity.type === 'trade' ? activity.pair : 
+                                 activity.type === 'deposit' ? `Deposit ${activity.currency}` :
+                                 `Withdrawal ${activity.currency}`}
+                              </p>
+                              <p className="text-xs text-gray-400">{activity.user?.email || 'Unknown'}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-medium text-white">{formatCurrency(activity.amount)}</p>
+                            <span className={`text-xs px-2 py-1 rounded-full ${
+                              activity.type === 'deposit' ? 'bg-green-500/20 text-green-400' :
+                              activity.type === 'withdrawal' ? 'bg-red-500/20 text-red-400' :
+                              activity.status === 'WON' ? 'bg-green-500/20 text-green-400' :
+                              activity.status === 'LOST' ? 'bg-red-500/20 text-red-400' :
+                              'bg-yellow-500/20 text-yellow-400'
+                            }`}>
+                              {activity.type === 'trade' ? activity.status : activity.type.toUpperCase()}
+                            </span>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-sm font-medium text-white">{formatCurrency(trade.amount)}</p>
-                          <span className={`text-xs px-2 py-1 rounded-full ${
-                            trade.status === 'WON' ? 'bg-green-500/20 text-green-400' :
-                            trade.status === 'LOST' ? 'bg-red-500/20 text-red-400' :
-                            'bg-yellow-500/20 text-yellow-400'
-                          }`}>
-                            {trade.status}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
+                      ))
+                    })()}
                   </div>
                 </div>
 
@@ -629,6 +736,237 @@ export default function AdminPage() {
                       <p className="text-xs text-gray-400 mt-1">Currently running</p>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* System Health & Quick Actions */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* System Health */}
+                <div className="bg-[#12192A]/50 backdrop-blur-xl rounded-2xl border border-[#1e2435] overflow-hidden">
+                  <div className="p-6 border-b border-[#1e2435]">
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2 rounded-lg bg-green-500/10">
+                        <Activity className="w-5 h-5 text-green-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-white">System Health</h3>
+                        <p className="text-sm text-gray-400">Platform status</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div className="flex items-center justify-between p-4 bg-[#1e2435]/50 rounded-xl">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+                        <span className="text-sm text-gray-300">API Status</span>
+                      </div>
+                      <span className="text-sm font-medium text-green-400">Operational</span>
+                    </div>
+                    <div className="flex items-center justify-between p-4 bg-[#1e2435]/50 rounded-xl">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+                        <span className="text-sm text-gray-300">Database</span>
+                      </div>
+                      <span className="text-sm font-medium text-green-400">Connected</span>
+                    </div>
+                    <div className="flex items-center justify-between p-4 bg-[#1e2435]/50 rounded-xl">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+                        <span className="text-sm text-gray-300">Trading Engine</span>
+                      </div>
+                      <span className="text-sm font-medium text-green-400">Active</span>
+                    </div>
+                    <div className="flex items-center justify-between p-4 bg-[#1e2435]/50 rounded-xl">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></div>
+                        <span className="text-sm text-gray-300">Active Users</span>
+                      </div>
+                      <span className="text-sm font-medium text-blue-400">{users.length} online</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Actions */}
+                <div className="bg-[#12192A]/50 backdrop-blur-xl rounded-2xl border border-[#1e2435] overflow-hidden">
+                  <div className="p-6 border-b border-[#1e2435]">
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2 rounded-lg bg-purple-500/10">
+                        <Settings className="w-5 h-5 text-purple-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-white">Quick Actions</h3>
+                        <p className="text-sm text-gray-400">Common tasks</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-6 space-y-3">
+                    <button
+                      onClick={() => setActiveTab('users')}
+                      className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-xl text-white hover:border-blue-500/50 transition-all duration-300 group"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <Users className="w-5 h-5 text-blue-400" />
+                        <span className="font-medium">Manage Users</span>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-blue-400 transition-colors" />
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('deposits')}
+                      className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-xl text-white hover:border-green-500/50 transition-all duration-300 group"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <DollarSign className="w-5 h-5 text-green-400" />
+                        <div className="text-left">
+                          <p className="font-medium">Review Deposits</p>
+                          {stats.pendingDeposits > 0 && (
+                            <p className="text-xs text-green-400">{stats.pendingDeposits} pending</p>
+                          )}
+                        </div>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-green-400 transition-colors" />
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('withdrawals')}
+                      className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-red-500/10 to-pink-500/10 border border-red-500/30 rounded-xl text-white hover:border-red-500/50 transition-all duration-300 group"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <TrendingDown className="w-5 h-5 text-red-400" />
+                        <div className="text-left">
+                          <p className="font-medium">Process Withdrawals</p>
+                          {stats.pendingWithdrawals > 0 && (
+                            <p className="text-xs text-red-400">{stats.pendingWithdrawals} pending</p>
+                          )}
+                        </div>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-red-400 transition-colors" />
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('trades')}
+                      className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/30 rounded-xl text-white hover:border-purple-500/50 transition-all duration-300 group"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <BarChart3 className="w-5 h-5 text-purple-400" />
+                        <div className="text-left">
+                          <p className="font-medium">View Trades</p>
+                          {stats.activeTrades > 0 && (
+                            <p className="text-xs text-purple-400">{stats.activeTrades} active</p>
+                          )}
+                        </div>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-purple-400 transition-colors" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Platform Statistics */}
+              <div className="bg-[#12192A]/50 backdrop-blur-xl rounded-2xl border border-[#1e2435] overflow-hidden">
+                <div className="p-6 border-b border-[#1e2435]">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 rounded-lg bg-blue-500/10">
+                      <BarChart3 className="w-5 h-5 text-blue-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">Platform Statistics</h3>
+                      <p className="text-sm text-gray-400">Key performance metrics</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="p-4 bg-[#1e2435]/50 rounded-xl">
+                      <p className="text-xs text-gray-400 mb-1">Win Rate</p>
+                      <p className="text-2xl font-bold text-green-400">
+                        {trades.length > 0 
+                          ? ((trades.filter(t => t.status === 'WON').length / trades.length) * 100).toFixed(1)
+                          : '0'}%
+                      </p>
+                    </div>
+                    <div className="p-4 bg-[#1e2435]/50 rounded-xl">
+                      <p className="text-xs text-gray-400 mb-1">Avg Trade</p>
+                      <p className="text-2xl font-bold text-blue-400">
+                        {trades.length > 0
+                          ? formatCurrency(trades.reduce((sum, t) => sum + t.amount, 0) / trades.length)
+                          : '$0'}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-[#1e2435]/50 rounded-xl">
+                      <p className="text-xs text-gray-400 mb-1">Avg Balance</p>
+                      <p className="text-2xl font-bold text-purple-400">
+                        {users.length > 0
+                          ? formatCurrency(stats.totalBalance / users.length)
+                          : '$0'}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-[#1e2435]/50 rounded-xl">
+                      <p className="text-xs text-gray-400 mb-1">Total Volume</p>
+                      <p className="text-2xl font-bold text-yellow-400">
+                        {formatCurrency(trades.reduce((sum, t) => sum + t.amount, 0))}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recent Users */}
+              <div className="bg-[#12192A]/50 backdrop-blur-xl rounded-2xl border border-[#1e2435] overflow-hidden">
+                <div className="p-6 border-b border-[#1e2435]">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2 rounded-lg bg-purple-500/10">
+                        <Users className="w-5 h-5 text-purple-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-white">Recent Users</h3>
+                        <p className="text-sm text-gray-400">Latest registrations</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => setActiveTab('users')}
+                      className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                    >
+                      View All
+                    </button>
+                  </div>
+                </div>
+                <div className="p-6">
+                  {users.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Users className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                      <p className="text-gray-400">No users registered yet</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {users
+                        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                        .slice(0, 5)
+                        .map((user) => (
+                          <div key={user.id} className="flex items-center justify-between p-4 bg-[#1e2435]/50 rounded-xl hover:bg-[#1e2435] transition-all duration-300">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
+                                <span className="text-white font-bold text-sm">
+                                  {user.email.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-white">{user.email}</p>
+                                <p className="text-xs text-gray-400">
+                                  {new Date(user.createdAt).toLocaleDateString()}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-medium text-green-400">{formatCurrency(user.balance)}</p>
+                              {user.isAdmin && (
+                                <span className="text-xs px-2 py-1 rounded-full bg-purple-500/20 text-purple-400">
+                                  Admin
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -758,45 +1096,58 @@ export default function AdminPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#1e2435]">
-                      {trades.slice(0, 50).map((trade) => (
-                        <tr key={trade.id} className="hover:bg-[#1e2435]/30 transition-colors">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="text-white font-medium">{trade.pair}</span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="text-sm text-gray-400">{trade.user.email}</span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                              trade.direction === 'BUY' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-                            }`}>
-                              {trade.direction}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="text-white font-medium">{formatCurrency(trade.amount)}</span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {trade.profit !== undefined && (
-                              <span className={`font-medium ${trade.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                {trade.profit >= 0 ? '+' : ''}{formatCurrency(trade.profit)}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                              trade.status === 'WON' ? 'bg-green-500/20 text-green-400 border border-green-500/30' :
-                              trade.status === 'LOST' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
-                              'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
-                            }`}>
-                              {trade.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="text-sm text-gray-400">{new Date(trade.createdAt).toLocaleString()}</span>
+                      {trades.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="px-6 py-12 text-center">
+                            <BarChart3 className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+                            <p className="text-gray-400 text-lg mb-2">No trades yet</p>
+                            <p className="text-gray-500 text-sm">Trading activity will appear here</p>
                           </td>
                         </tr>
-                      ))}
+                      ) : (
+                        trades.slice(0, 50).map((trade) => (
+                          <tr key={trade.id} className="hover:bg-[#1e2435]/30 transition-colors">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="text-white font-medium">{trade.pair}</span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="text-sm text-gray-400">{trade.user?.email || 'Unknown'}</span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                trade.direction === 'up' || trade.direction === 'BUY' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                              }`}>
+                                {trade.direction === 'up' ? 'BUY' : trade.direction === 'down' ? 'SELL' : trade.direction}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="text-white font-medium">{formatCurrency(trade.amount)}</span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              {trade.profit !== undefined && trade.profit !== null ? (
+                                <span className={`font-medium ${trade.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                  {trade.profit >= 0 ? '+' : ''}{formatCurrency(trade.profit)}
+                                </span>
+                              ) : (
+                                <span className="text-gray-500">-</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                trade.status?.toUpperCase() === 'WON' || trade.status?.toLowerCase() === 'win' ? 'bg-green-500/20 text-green-400 border border-green-500/30' :
+                                trade.status?.toUpperCase() === 'LOST' || trade.status?.toLowerCase() === 'loss' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+                                trade.status?.toUpperCase() === 'ACTIVE' || trade.status?.toLowerCase() === 'pending' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' :
+                                'bg-gray-500/20 text-gray-400 border border-gray-500/30'
+                              }`}>
+                                {trade.status?.toUpperCase() || 'PENDING'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="text-sm text-gray-400">{new Date(trade.createdAt).toLocaleString()}</span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>

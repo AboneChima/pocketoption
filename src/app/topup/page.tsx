@@ -113,23 +113,54 @@ export default function TopUpPage() {
     setIsProcessing(true)
     try {
       const depositAmount = parseFloat(amount)
-      const data = await depositFunds(depositAmount, 'crypto', {
-        currency: selectedCrypto.symbol,
-        address: selectedCrypto.address,
-        network: selectedCrypto.network || 'mainnet'
-      })
+      
+      // Create deposit directly via API with user ID from AuthContext
+      const response = await fetch('/api/firebase/deposit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          amount: depositAmount,
+          method: 'crypto',
+          metadata: {
+            currency: selectedCrypto.symbol,
+            address: selectedCrypto.address,
+            network: selectedCrypto.network || 'mainnet'
+          }
+        }),
+      });
 
-      toast.success(data?.message || 'Deposit request submitted successfully. Waiting for admin approval.', {
-        duration: 5000,
-        icon: ''
-      })
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create deposit request');
+      }
+
+      const result = await response.json();
+
+      toast.success(
+        'Deposit request submitted successfully! 🎉\n\nYour deposit is now pending admin approval. You will be notified once it\'s processed.',
+        {
+          duration: 8000,
+          icon: '⏳',
+          style: {
+            background: '#1e2435',
+            color: '#fff',
+            border: '1px solid #2a3441',
+            borderRadius: '12px',
+            padding: '16px',
+            maxWidth: '400px',
+          },
+        }
+      );
 
       setShowModal(false)
       setSelectedCrypto(null)
       setAmount('')
-    } catch (error) {
+    } catch (error: any) {
       console.error('Deposit error:', error)
-      toast.error('Failed to submit deposit. Please try again.')
+      toast.error(error.message || 'Failed to submit deposit. Please try again.')
     } finally {
       setIsProcessing(false)
     }

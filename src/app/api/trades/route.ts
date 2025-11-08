@@ -1,9 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { adminDb } from '@/lib/firebaseAdmin'
 
 export async function GET(request: NextRequest) {
   try {
-    // Return empty trades array since we're removing mock data
-    return NextResponse.json([])
+    const { searchParams } = new URL(request.url)
+    const userId = searchParams.get('userId')
+
+    if (!userId) {
+      return NextResponse.json({ error: 'User ID required' }, { status: 400 })
+    }
+
+    // Fetch user's trades from Firestore
+    const tradesSnapshot = await adminDb
+      .collection('trades')
+      .where('userId', '==', userId)
+      .orderBy('createdAt', 'desc')
+      .limit(100)
+      .get()
+
+    const trades = tradesSnapshot.docs.map(doc => {
+      const data = doc.data()
+      return {
+        id: doc.id,
+        ...data,
+        // Calculate profit if trade is completed
+        profit: data.result === 'won' || data.result === 'win' 
+          ? data.amount * (data.payout || 0.78)
+          : data.result === 'lost' || data.result === 'loss'
+          ? -data.amount
+          : 0
+      }
+    })
+
+    return NextResponse.json({ trades })
   } catch (error) {
     console.error('Error fetching trades:', error)
     return NextResponse.json(

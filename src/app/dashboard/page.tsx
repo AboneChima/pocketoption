@@ -29,10 +29,15 @@ import {
   Trophy,
   FileText,
   Circle,
-  X
+  X,
+  Activity,
+  Target,
+  Percent
 } from 'lucide-react'
 import DesktopSidebar from '@/components/DesktopSidebar'
 import MobileBottomNav from '@/components/MobileBottomNav'
+import WithdrawModal from '@/components/modals/WithdrawModal'
+import WithdrawalHistoryDashboard from '@/components/WithdrawalHistoryDashboard'
 
 interface TradingPair {
   symbol: string
@@ -91,6 +96,7 @@ export default function DashboardPage() {
   const [showBottomSheet, setShowBottomSheet] = useState(false)
   const [dashboardLoading, setDashboardLoading] = useState(true)
   const [currentTime, setCurrentTime] = useState(Date.now())
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false)
 
   // Available trading pairs
   const tradingPairs: TradingPair[] = [
@@ -113,15 +119,7 @@ export default function DashboardPage() {
     { value: 3600, label: '01:00:00' },
   ]
 
-  // Bottom tabs
-  const bottomTabs: BottomTab[] = [
-    { id: 'trades', label: 'Trades', icon: <BarChart3 className="w-5 h-5" />, badge: activeTrades.length },
-    { id: 'signals', label: 'Signals', icon: <Zap className="w-5 h-5" /> },
-    { id: 'social', label: 'Social Trading', icon: <Users className="w-5 h-5" /> },
-    { id: 'express', label: 'Express Trades', icon: <TrendingUp className="w-5 h-5" /> },
-    { id: 'tournaments', label: 'Tournaments', icon: <Trophy className="w-5 h-5" /> },
-    { id: 'pending', label: 'Pending Trades', icon: <FileText className="w-5 h-5" /> },
-  ]
+  // Removed cluttered bottom tabs for cleaner UI
 
   // Trading logic
   const calculatePayout = () => {
@@ -184,9 +182,6 @@ export default function DashboardPage() {
     setIsTrading(true)
 
     try {
-      // Show processing message
-      toast.loading('Placing trade...', { id: 'trade-processing' })
-
       // Create trade using Firebase Cloud Function
       const result = await placeTrade(
         selectedPair.symbol,
@@ -223,9 +218,9 @@ export default function DashboardPage() {
         updateBalance(newBalance)
       }
 
-      // Show success message
-      toast.dismiss('trade-processing')
-      toast.success(
+      // Trade placed - will show result notification when complete
+      // toast.dismiss('trade-processing')
+      /* toast.success(
         `${direction} order placed for $${tradeAmount.toLocaleString()} on ${selectedPair.symbol}`,
         {
           duration: 3000,
@@ -236,7 +231,7 @@ export default function DashboardPage() {
             border: `1px solid ${direction === 'BUY' ? '#10b981' : '#ef4444'}`
           }
         }
-      )
+      ) */
 
       // Simulate trade expiry (in real app, this would be handled by server)
       setTimeout(() => {
@@ -244,7 +239,6 @@ export default function DashboardPage() {
       }, selectedTime * 1000)
 
     } catch (error: any) {
-      toast.dismiss('trade-processing')
       toast.error(error.message || 'Failed to place trade. Please try again.')
     } finally {
       setIsTrading(false)
@@ -256,26 +250,34 @@ export default function DashboardPage() {
       const trade = prev.find(t => t.id === tradeId)
       if (!trade) return prev
 
-      // More realistic price simulation based on direction and market volatility
-      const volatility = 0.0005 // Base volatility
-      const timeDecay = Math.min(selectedTime / 60, 1) // Longer trades have more movement
-      const priceMovement = (Math.random() - 0.5) * volatility * timeDecay * 2
+      // Check if already resolved to prevent duplicates
+      if (tradeHistory.some(t => t.id === tradeId)) {
+        console.log('Trade already resolved, skipping:', tradeId)
+        return prev.filter(t => t.id !== tradeId)
+      }
+
+      // Realistic house edge - users lose 70% of the time
+      const randomChance = Math.random()
+      const isWin = randomChance <= 0.30 // Only 30% chance to win
       
-      // Current price at expiry
-      const exitPrice = trade.entry + priceMovement
+      // Calculate exit price for display
+      const volatility = 0.0005
+      const timeDecay = Math.min(selectedTime / 60, 1)
+      let priceMovement
       
-      // Determine win/loss based on direction and price movement
-      let isWin = false
-      if (trade.direction === 'BUY') {
-        isWin = exitPrice > trade.entry
+      if (isWin) {
+        // If winning, price moves in user's favor
+        priceMovement = trade.direction === 'BUY' 
+          ? Math.abs(Math.random() * volatility * timeDecay) // Price goes up
+          : -Math.abs(Math.random() * volatility * timeDecay) // Price goes down
       } else {
-        isWin = exitPrice < trade.entry
+        // If losing, price moves against user
+        priceMovement = trade.direction === 'BUY'
+          ? -Math.abs(Math.random() * volatility * timeDecay) // Price goes down
+          : Math.abs(Math.random() * volatility * timeDecay) // Price goes up
       }
       
-      // Add some randomness to make it more realistic (52% win rate)
-      if (Math.abs(exitPrice - trade.entry) < 0.0001) {
-        isWin = Math.random() < 0.52
-      }
+      const exitPrice = trade.entry + priceMovement
 
       const resolvedTrade: Trade = {
         ...trade,
@@ -296,8 +298,9 @@ export default function DashboardPage() {
         
         // Show win notification
         toast.success(
-          `🎉 Trade Won! +$${profit.toLocaleString()} profit (${(trade.payout * 100).toFixed(0)}% return)`,
+          `🎉 Trade Won! +$${profit.toFixed(2)} profit (${(trade.payout * 100).toFixed(0)}% return)`,
           {
+            id: `win-${tradeId}`,
             duration: 5000,
             style: {
               background: '#065f46',
@@ -310,8 +313,9 @@ export default function DashboardPage() {
         // For losses, no balance change needed since amount was already deducted when trade was opened
         // Show loss notification
         toast.error(
-          `📉 Trade Lost. -$${trade.amount.toLocaleString()} on ${trade.pair}`,
+          `📉 Trade Lost. -$${trade.amount.toFixed(2)} on ${trade.pair}`,
           {
+            id: `loss-${tradeId}`,
             duration: 4000,
             style: {
               background: '#7f1d1d',
@@ -322,8 +326,32 @@ export default function DashboardPage() {
         )
       }
 
-      setTradeHistory(prev => [resolvedTrade, ...prev])
-      setIsTrading(false)
+      // Update trade in Firebase
+      const updateTradeInFirebase = async () => {
+        try {
+          const profit = isWin ? trade.amount * trade.payout : -trade.amount
+          await fetch(`/api/firebase/close-trade`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              tradeId: trade.id,
+              exitPrice,
+              result: isWin ? 'won' : 'lost',
+              profit
+            })
+          })
+        } catch (error) {
+          console.error('Failed to update trade in Firebase:', error)
+        }
+      }
+      updateTradeInFirebase()
+
+      // Move state updates outside to avoid setState during render
+      setTimeout(() => {
+        setTradeHistory(prev => [resolvedTrade, ...prev])
+        setIsTrading(false)
+      }, 0)
+      
       return prev.filter(t => t.id !== tradeId)
     })
   }
@@ -438,9 +466,20 @@ export default function DashboardPage() {
             <ChevronDown className="w-3 h-3" />
           </button>
           
-          <button className="bg-green-600 hover:bg-green-700 px-2 py-1.5 rounded-md transition-colors flex items-center space-x-1">
+          <button
+            onClick={() => router.push('/deposit')}
+            className="bg-green-600 hover:bg-green-700 px-2 py-1.5 rounded-md transition-colors flex items-center space-x-1"
+          >
             <Wallet className="w-3 h-3" />
             <span className="text-xs font-medium">Deposit</span>
+          </button>
+          
+          <button
+            onClick={() => setShowWithdrawModal(true)}
+            className="bg-red-600 hover:bg-red-700 px-2 py-1.5 rounded-md transition-colors flex items-center space-x-1"
+          >
+            <TrendingDown className="w-3 h-3" />
+            <span className="text-xs font-medium">Withdraw</span>
           </button>
         </div>
       </header>
@@ -588,42 +627,203 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Bottom Tab Bar */}
-      <div className="bg-gradient-to-r from-[#12192A] to-[#1a1f2e] border-t border-[#1e2435] px-4 py-2 shadow-lg">
-        <div className="flex justify-between">
-          {bottomTabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => {
-                setActiveBottomTab(tab.id)
-                setShowBottomSheet(true)
-              }}
-              className={`flex flex-col items-center space-y-1 px-2 py-2 rounded-lg transition-all duration-200 transform hover:scale-105 ${
-                activeBottomTab === tab.id 
-                  ? 'text-blue-400 bg-blue-500/10 shadow-lg' 
-                  : 'text-[#9AA6BC] hover:text-[#E6EDF7] hover:bg-[#1e2435]/50'
-              }`}
-            >
-              <div className="relative">
-                {tab.icon}
-                {tab.badge && tab.badge > 0 && (
-                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-gradient-to-r from-red-500 to-red-600 rounded-full flex items-center justify-center shadow-lg animate-pulse">
-                    <span className="text-xs text-white font-bold">{tab.badge}</span>
-                  </div>
-                )}
+      {/* Professional Trading Features - Responsive */}
+      <div className="bg-[#12192A] border-t border-[#1e2435] lg:hidden">
+        {/* Market Sentiment */}
+        <div className="px-4 py-3 border-b border-[#1e2435]">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-gray-400">Market Sentiment</span>
+            <span className="text-xs text-gray-500">{selectedPair.symbol}</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <div className="flex-1 h-2 bg-[#1e2435] rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-green-500 to-green-400" style={{ width: '58%' }}></div>
+            </div>
+            <div className="flex items-center space-x-3 text-xs">
+              <div className="flex items-center space-x-1">
+                <ArrowUp className="w-3 h-3 text-green-400" />
+                <span className="text-green-400 font-medium">58%</span>
               </div>
-              <span className="text-xs font-medium">{tab.label}</span>
+              <div className="flex items-center space-x-1">
+                <ArrowDown className="w-3 h-3 text-red-400" />
+                <span className="text-red-400 font-medium">42%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Amount Buttons */}
+        <div className="px-4 py-3 border-b border-[#1e2435]">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-gray-400">Quick Amount</span>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {[1, 5, 10, 25].map((amt) => (
+              <button
+                key={amt}
+                onClick={() => setTradeAmount(amt)}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                  tradeAmount === amt
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-[#1e2435] text-gray-300 hover:bg-[#252d42]'
+                }`}
+              >
+                ${amt}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Active Trades with Timer */}
+        {activeTrades.length > 0 && (
+          <div className="px-4 py-3 border-b border-[#1e2435]">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-gray-400">Active Positions</span>
+              <span className="text-xs text-blue-400">{activeTrades.length}</span>
+            </div>
+            <div className="space-y-2">
+              {activeTrades.map((trade) => {
+                const timeLeft = Math.max(0, Math.floor((trade.expiryTime - currentTime) / 1000))
+                const progress = (timeLeft / selectedTime) * 100
+                return (
+                  <div key={trade.id} className="bg-[#1e2435] rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center space-x-2">
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                          trade.direction === 'BUY' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                        }`}>
+                          {trade.direction}
+                        </span>
+                        <span className="text-sm font-medium text-white">{trade.pair}</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Clock className="w-3 h-3 text-gray-400" />
+                        <span className="text-xs text-gray-300 font-mono">{formatTime(timeLeft)}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-gray-400 mb-2">
+                      <span>${trade.amount}</span>
+                      <span className="text-green-400">+{(trade.payout * 100).toFixed(0)}%</span>
+                    </div>
+                    <div className="h-1 bg-[#0E1320] rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-1000"
+                        style={{ width: `${progress}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Recent Trades Feed */}
+        <div className="px-4 py-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-gray-400">Recent Trades</span>
+            <button
+              onClick={() => router.push('/history')}
+              className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              View All
             </button>
-          ))}
+          </div>
+          {tradeHistory.length > 0 ? (
+            <div className="space-y-2">
+              {tradeHistory.slice(0, 3).map((trade) => (
+                <div key={trade.id} className="flex items-center justify-between text-xs">
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-1.5 h-1.5 rounded-full ${trade.result === 'Win' ? 'bg-green-400' : 'bg-red-400'}`}></div>
+                    <span className="text-gray-400">{trade.pair}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-xs ${
+                      trade.direction === 'BUY' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
+                    }`}>
+                      {trade.direction}
+                    </span>
+                  </div>
+                  <span className={`font-medium ${trade.result === 'Win' ? 'text-green-400' : 'text-red-400'}`}>
+                    {trade.result === 'Win' ? '+' : '-'}${Math.abs(trade.amount * (trade.result === 'Win' ? trade.payout : 1)).toFixed(2)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-500 text-center py-4">No trades yet</p>
+          )}
         </div>
       </div>
 
-      {/* Bottom Sheet */}
-      {showBottomSheet && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-end animate-in fade-in duration-200">
-          <div className="w-full bg-gradient-to-b from-[#12192A] to-[#0E1320] rounded-t-xl max-h-[70vh] overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-300">
-            <div className="flex items-center justify-between p-4 border-b border-[#1e2435]">
-              <h3 className="text-lg font-semibold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+      {/* Desktop Trading Info - Clean and Professional */}
+      <div className="hidden lg:block bg-[#12192A] border-t border-[#1e2435] px-8 py-4">
+        <div className="max-w-7xl mx-auto grid grid-cols-3 gap-6">
+          {/* Market Sentiment */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm text-gray-400">Market Sentiment</span>
+              <span className="text-xs text-gray-500">{selectedPair.symbol}</span>
+            </div>
+            <div className="flex items-center space-x-3">
+              <div className="flex-1 h-3 bg-[#1e2435] rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-green-500 to-green-400" style={{ width: '58%' }}></div>
+              </div>
+              <div className="flex items-center space-x-4 text-sm">
+                <div className="flex items-center space-x-1">
+                  <ArrowUp className="w-4 h-4 text-green-400" />
+                  <span className="text-green-400 font-medium">58%</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <ArrowDown className="w-4 h-4 text-red-400" />
+                  <span className="text-red-400 font-medium">42%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Active Positions */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm text-gray-400">Active Positions</span>
+              <span className="text-sm text-blue-400">{activeTrades.length}</span>
+            </div>
+            {activeTrades.length > 0 ? (
+              <div className="text-sm text-gray-300">
+                {activeTrades[0].pair} • ${activeTrades[0].amount} • {activeTrades[0].direction}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500">No active trades</div>
+            )}
+          </div>
+
+          {/* Quick Actions */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm text-gray-400">Quick Actions</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => router.push('/portfolio')}
+                className="flex-1 px-3 py-2 bg-[#1e2435] hover:bg-[#252d42] rounded-lg text-sm text-gray-300 transition-colors"
+              >
+                Portfolio
+              </button>
+              <button
+                onClick={() => router.push('/history')}
+                className="flex-1 px-3 py-2 bg-[#1e2435] hover:bg-[#252d42] rounded-lg text-sm text-gray-300 transition-colors"
+              >
+                History
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Removed cluttered bottom tabs - keeping it simple */}
+      {false && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-end lg:items-center lg:justify-center animate-in fade-in duration-200" onClick={() => setShowBottomSheet(false)}>
+          <div className="w-full lg:max-w-4xl bg-gradient-to-b from-[#12192A] to-[#0E1320] rounded-t-2xl lg:rounded-2xl max-h-[85vh] lg:max-h-[90vh] flex flex-col shadow-2xl animate-in slide-in-from-bottom lg:slide-in-from-top duration-300" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 lg:p-6 border-b border-[#1e2435] flex-shrink-0">
+              <h3 className="text-lg lg:text-xl font-semibold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
                 {bottomTabs.find(tab => tab.id === activeBottomTab)?.label}
               </h3>
               <button
@@ -634,7 +834,7 @@ export default function DashboardPage() {
               </button>
             </div>
             
-            <div className="p-4 overflow-y-auto">
+            <div className="p-4 lg:p-6 overflow-y-auto flex-1">
               {activeBottomTab === 'trades' && (
                 <div className="space-y-3">
                   {activeTrades.length === 0 && tradeHistory.length === 0 ? (
@@ -677,67 +877,238 @@ export default function DashboardPage() {
                 </div>
               )}
               
-              {activeBottomTab !== 'trades' && (
+              {activeBottomTab === 'withdrawals' && (
+                <WithdrawalHistoryDashboard />
+              )}
+              
+              {activeBottomTab !== 'trades' && activeBottomTab !== 'withdrawals' && (
                 <div className="space-y-4">
                   {activeBottomTab === 'signals' && (
                     <div className="space-y-3">
-                      <div className="bg-[#1e2435] rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-medium text-green-400">EUR/USD Signal</span>
-                          <span className="text-xs text-[#9AA6BC]">2 min ago</span>
+                      <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/5 border border-green-500/20 rounded-xl p-4 hover:border-green-500/40 transition-all">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center">
+                              <TrendingUp className="w-4 h-4 text-green-400" />
+                            </div>
+                            <span className="font-semibold text-white">EUR/USD</span>
+                          </div>
+                          <span className="text-xs text-gray-400 flex items-center space-x-1">
+                            <Clock className="w-3 h-3" />
+                            <span>2m ago</span>
+                          </span>
                         </div>
-                        <div className="text-sm text-[#9AA6BC]">
-                          Strong BUY signal • 85% accuracy • 5min expiry
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs font-medium rounded">BUY Signal</span>
+                            <p className="text-xs text-gray-400 mt-2">85% accuracy • 5min expiry</p>
+                          </div>
+                          <button className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors">
+                            Trade Now
+                          </button>
                         </div>
                       </div>
-                      <div className="bg-[#1e2435] rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-medium text-red-400">GBP/USD Signal</span>
-                          <span className="text-xs text-[#9AA6BC]">5 min ago</span>
+                      
+                      <div className="bg-gradient-to-r from-red-500/10 to-pink-500/5 border border-red-500/20 rounded-xl p-4 hover:border-red-500/40 transition-all">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-8 h-8 bg-red-500/20 rounded-lg flex items-center justify-center">
+                              <TrendingDown className="w-4 h-4 text-red-400" />
+                            </div>
+                            <span className="font-semibold text-white">GBP/USD</span>
+                          </div>
+                          <span className="text-xs text-gray-400 flex items-center space-x-1">
+                            <Clock className="w-3 h-3" />
+                            <span>5m ago</span>
+                          </span>
                         </div>
-                        <div className="text-sm text-[#9AA6BC]">
-                          SELL signal • 78% accuracy • 3min expiry
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="px-2 py-1 bg-red-500/20 text-red-400 text-xs font-medium rounded">SELL Signal</span>
+                            <p className="text-xs text-gray-400 mt-2">78% accuracy • 3min expiry</p>
+                          </div>
+                          <button className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-lg transition-colors">
+                            Trade Now
+                          </button>
                         </div>
+                      </div>
+                      
+                      <div className="bg-[#1e2435]/50 border border-[#252d42] rounded-xl p-4 text-center">
+                        <Zap className="w-8 h-8 text-blue-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-300 font-medium">AI-Powered Signals</p>
+                        <p className="text-xs text-gray-400 mt-1">Real-time market analysis</p>
                       </div>
                     </div>
                   )}
                   
                   {activeBottomTab === 'social' && (
                     <div className="space-y-3">
-                      <div className="bg-[#1e2435] rounded-lg p-4">
-                        <div className="flex items-center space-x-3 mb-2">
-                          <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                            <User className="w-4 h-4" />
+                      <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/5 border border-blue-500/20 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                              <User className="w-5 h-5 text-white" />
+                            </div>
+                            <div>
+                              <div className="font-semibold text-white">TraderPro123</div>
+                              <div className="text-xs text-green-400 flex items-center space-x-1">
+                                <TrendingUp className="w-3 h-3" />
+                                <span>+$245 today</span>
+                              </div>
+                            </div>
                           </div>
-                          <div>
-                            <div className="font-medium">TraderPro123</div>
-                            <div className="text-xs text-green-400">+$245 today</div>
+                          <button className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors">
+                            Follow
+                          </button>
+                        </div>
+                        <div className="text-sm text-gray-300 bg-[#1e2435]/50 rounded-lg p-2">
+                          Just opened <span className="text-green-400 font-medium">EUR/USD BUY</span> position
+                        </div>
+                      </div>
+                      
+                      <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/5 border border-purple-500/20 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center">
+                              <User className="w-5 h-5 text-white" />
+                            </div>
+                            <div>
+                              <div className="font-semibold text-white">CryptoKing</div>
+                              <div className="text-xs text-green-400 flex items-center space-x-1">
+                                <Trophy className="w-3 h-3" />
+                                <span>Top Trader</span>
+                              </div>
+                            </div>
                           </div>
+                          <button className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium rounded-lg transition-colors">
+                            Follow
+                          </button>
                         </div>
-                        <div className="text-sm text-[#9AA6BC]">
-                          Just opened EUR/USD BUY position
+                        <div className="text-sm text-gray-300 bg-[#1e2435]/50 rounded-lg p-2">
+                          Closed <span className="text-green-400 font-medium">BTC/USD</span> with +$180 profit
                         </div>
+                      </div>
+                      
+                      <div className="bg-[#1e2435]/50 border border-[#252d42] rounded-xl p-4 text-center">
+                        <Users className="w-8 h-8 text-purple-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-300 font-medium">Copy Top Traders</p>
+                        <p className="text-xs text-gray-400 mt-1">Follow and replicate successful strategies</p>
                       </div>
                     </div>
                   )}
                   
                   {activeBottomTab === 'tournaments' && (
                     <div className="space-y-3">
-                      <div className="bg-[#1e2435] rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-medium">Weekly Championship</span>
-                          <span className="text-xs bg-yellow-600 px-2 py-1 rounded">Live</span>
+                      <div className="bg-gradient-to-r from-yellow-500/10 to-orange-500/5 border border-yellow-500/30 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-8 h-8 bg-yellow-500/20 rounded-lg flex items-center justify-center">
+                              <Trophy className="w-4 h-4 text-yellow-400" />
+                            </div>
+                            <span className="font-semibold text-white">Weekly Championship</span>
+                          </div>
+                          <span className="px-2 py-1 bg-yellow-600 text-white text-xs font-medium rounded animate-pulse">LIVE</span>
                         </div>
-                        <div className="text-sm text-[#9AA6BC]">
-                          Prize Pool: $10,000 • 234 participants
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-400">Prize Pool:</span>
+                            <span className="text-yellow-400 font-semibold">$10,000</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-400">Participants:</span>
+                            <span className="text-white font-medium">234 traders</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-400">Ends in:</span>
+                            <span className="text-white font-medium">2d 14h</span>
+                          </div>
                         </div>
+                        <button className="w-full mt-3 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium rounded-lg transition-colors">
+                          Join Tournament
+                        </button>
+                      </div>
+                      
+                      <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/5 border border-purple-500/20 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                              <Trophy className="w-4 h-4 text-purple-400" />
+                            </div>
+                            <span className="font-semibold text-white">Daily Sprint</span>
+                          </div>
+                          <span className="px-2 py-1 bg-gray-600 text-white text-xs font-medium rounded">Upcoming</span>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-400">Prize Pool:</span>
+                            <span className="text-purple-400 font-semibold">$2,500</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-400">Starts in:</span>
+                            <span className="text-white font-medium">6h 30m</span>
+                          </div>
+                        </div>
+                        <button className="w-full mt-3 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-colors">
+                          Set Reminder
+                        </button>
+                      </div>
+                      
+                      <div className="bg-[#1e2435]/50 border border-[#252d42] rounded-xl p-4 text-center">
+                        <Trophy className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-300 font-medium">Compete & Win</p>
+                        <p className="text-xs text-gray-400 mt-1">Join tournaments and win real prizes</p>
                       </div>
                     </div>
                   )}
                   
-                  {!['signals', 'social', 'tournaments'].includes(activeBottomTab) && (
+                  {activeBottomTab === 'express' && (
+                    <div className="space-y-3">
+                      <div className="bg-gradient-to-r from-blue-500/10 to-cyan-500/5 border border-blue-500/20 rounded-xl p-4">
+                        <div className="flex items-center space-x-2 mb-3">
+                          <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                            <Zap className="w-4 h-4 text-blue-400" />
+                          </div>
+                          <span className="font-semibold text-white">Quick Trade</span>
+                        </div>
+                        <p className="text-sm text-gray-300 mb-3">Trade with one click using preset amounts</p>
+                        <div className="grid grid-cols-3 gap-2">
+                          <button className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
+                            $10
+                          </button>
+                          <button className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
+                            $25
+                          </button>
+                          <button className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
+                            $50
+                          </button>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/5 border border-green-500/20 rounded-xl p-4">
+                        <div className="flex items-center space-x-2 mb-3">
+                          <div className="w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center">
+                            <Target className="w-4 h-4 text-green-400" />
+                          </div>
+                          <span className="font-semibold text-white">Auto Trade</span>
+                        </div>
+                        <p className="text-sm text-gray-300 mb-3">Set conditions and let the system trade for you</p>
+                        <button className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors">
+                          Configure Auto Trade
+                        </button>
+                      </div>
+                      
+                      <div className="bg-[#1e2435]/50 border border-[#252d42] rounded-xl p-4 text-center">
+                        <Zap className="w-8 h-8 text-cyan-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-300 font-medium">Express Trading</p>
+                        <p className="text-xs text-gray-400 mt-1">Fast execution with minimal clicks</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {!['signals', 'social', 'tournaments', 'express'].includes(activeBottomTab) && (
                     <div className="text-center text-[#9AA6BC] py-8">
-                      <p>Coming soon...</p>
+                      <Activity className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                      <p className="font-medium">Coming Soon</p>
                       <p className="text-sm mt-2">This feature is under development</p>
                     </div>
                   )}
@@ -750,6 +1121,19 @@ export default function DashboardPage() {
 
       <MobileBottomNav />
       </div>
+
+      {/* Withdraw Modal */}
+      <WithdrawModal
+        isOpen={showWithdrawModal}
+        onClose={() => setShowWithdrawModal(false)}
+        balance={balance}
+        onWithdrawSuccess={() => {
+          // Refresh balance after successful withdrawal
+          if (user && user.balance !== undefined) {
+            setBalance(user.balance)
+          }
+        }}
+      />
     </div>
   )
 }

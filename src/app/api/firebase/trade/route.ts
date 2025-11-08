@@ -1,100 +1,62 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db, COLLECTIONS } from '@/lib/firebase';
-import { doc, setDoc, getDoc, updateDoc, increment, serverTimestamp } from 'firebase/firestore';
+import { NextRequest, NextResponse } from 'next/server'
+import { adminDb } from '@/lib/firebaseAdmin'
 
 export async function POST(request: NextRequest) {
   try {
-    const { asset, direction, amount, entryPrice, duration, userId, metadata } = await request.json();
+    const body = await request.json()
+    const { asset, direction, amount, entryPrice, duration, userId, metadata } = body
 
-    if (!userId || !asset || !direction || !amount || !entryPrice || !duration) {
+    if (!userId || !asset || !direction || !amount || !entryPrice) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
-      );
+      )
     }
 
-    // Check user balance
-    const userDoc = await getDoc(doc(db, COLLECTIONS.USERS, userId));
-    if (!userDoc.exists()) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
-    }
-
-    const userData = userDoc.data();
-    if (userData.balance < amount) {
-      return NextResponse.json(
-        { error: 'Insufficient balance' },
-        { status: 400 }
-      );
-    }
-
-    // Create trade record
-    const tradeId = `trade_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const expiryTime = new Date(Date.now() + duration * 1000);
-    
+    // Create trade in Firestore
     const tradeData = {
-      id: tradeId,
       userId,
+      pair: asset,
       asset,
       direction,
-      amount: Number(amount),
-      entryPrice: Number(entryPrice),
-      duration: Number(duration),
+      amount,
+      entryPrice,
+      duration,
       status: 'active',
-      createdAt: serverTimestamp(),
-      expiryTime,
+      result: null,
+      profit: null,
+      exitPrice: null,
+      payout: metadata?.payout || 0.78,
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + duration * 1000).toISOString(),
       metadata: metadata || {}
-    };
+    }
 
-    // Save trade to Firestore
-    await setDoc(doc(db, COLLECTIONS.TRADES, tradeId), tradeData);
+    const tradeRef = await adminDb.collection('trades').add(tradeData)
 
-    // Update user balance
-    await updateDoc(doc(db, COLLECTIONS.USERS, userId), {
-      balance: increment(-amount),
-      updatedAt: serverTimestamp()
-    });
-
-    // Create transaction record
-    const transactionId = `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const transactionData = {
-      id: transactionId,
-      userId,
-      type: 'trade',
-      amount: -Number(amount),
-      status: 'completed',
-      description: `Trade placed: ${direction.toUpperCase()} on ${asset}`,
-      createdAt: serverTimestamp(),
-      metadata: {
-        tradeId,
-        asset,
-        direction,
-        entryPrice,
-        duration,
-        ...metadata
-      }
-    };
-
-    await setDoc(doc(db, COLLECTIONS.TRANSACTIONS, transactionId), transactionData);
+    // Deduct amount from user balance
+    const userRef = adminDb.collection('users').doc(userId)
+    const userDoc = await userRef.get()
+    
+    if (userDoc.exists) {
+      const currentBalance = userDoc.data()?.balance || 0
+      await userRef.update({
+        balance: currentBalance - amount
+      })
+    }
 
     return NextResponse.json({
       success: true,
       data: {
-        tradeId,
-        transactionId,
-        status: 'active',
-        expiryTime: expiryTime.toISOString(),
-        message: 'Trade placed successfully'
+        tradeId: tradeRef.id,
+        ...tradeData
       }
-    });
-
-  } catch (error) {
-    console.error('Trade API error:', error);
+    })
+  } catch (error: any) {
+    console.error('Error creating trade:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: error.message || 'Failed to create trade' },
       { status: 500 }
-    );
+    )
   }
 }

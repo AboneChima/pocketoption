@@ -1,46 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, COLLECTIONS } from '@/lib/firebase';
 import { adminDb } from '@/lib/firebaseAdmin';
-import { doc, setDoc, updateDoc, increment, serverTimestamp } from 'firebase/firestore';
+import { COLLECTIONS } from '@/lib/firebase';
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('Deposit API called');
     const { amount, method, userId, metadata } = await request.json();
+    console.log('Deposit request:', { amount, method, userId, metadata });
 
     if (!userId || !amount || !method) {
+      console.error('Missing required fields');
       return NextResponse.json(
         { error: 'Missing required fields: userId, amount, method' },
         { status: 400 }
       );
     }
 
-    // Create deposit record
+    // Create deposit record using Admin SDK only (server-side)
     const depositId = `deposit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const now = new Date();
+    
     const depositData = {
       id: depositId,
       userId,
       amount: Number(amount),
       method,
       status: 'pending',
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
+      createdAt: now,
+      updatedAt: now,
       metadata: metadata || {}
     };
 
-    // Save deposit to Firestore
-    await setDoc(doc(db, COLLECTIONS.DEPOSITS, depositId), depositData);
-
-    // Also save via Firebase Admin SDK for server-side verification
-    try {
-      await adminDb.collection(COLLECTIONS.DEPOSITS).doc(depositId).set({
-        ...depositData,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
-      console.log('Deposit record created via Admin SDK');
-    } catch (adminError) {
-      console.warn('Failed to create deposit via Admin SDK, client-side creation succeeded:', adminError);
-    }
+    console.log('Creating deposit in Firestore:', depositId);
+    await adminDb.collection(COLLECTIONS.DEPOSITS).doc(depositId).set(depositData);
+    console.log('Deposit created successfully');
 
     // Create transaction record
     const transactionId = `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -51,7 +44,7 @@ export async function POST(request: NextRequest) {
       amount: Number(amount),
       status: 'pending',
       description: `Deposit via ${method}`,
-      createdAt: serverTimestamp(),
+      createdAt: now,
       metadata: {
         depositId,
         method,
@@ -59,18 +52,9 @@ export async function POST(request: NextRequest) {
       }
     };
 
-    await setDoc(doc(db, COLLECTIONS.TRANSACTIONS, transactionId), transactionData);
-
-    // Also save transaction via Firebase Admin SDK
-    try {
-      await adminDb.collection(COLLECTIONS.TRANSACTIONS).doc(transactionId).set({
-        ...transactionData,
-        createdAt: new Date()
-      });
-      console.log('Transaction record created via Admin SDK');
-    } catch (adminError) {
-      console.warn('Failed to create transaction via Admin SDK, client-side creation succeeded:', adminError);
-    }
+    console.log('Creating transaction in Firestore:', transactionId);
+    await adminDb.collection(COLLECTIONS.TRANSACTIONS).doc(transactionId).set(transactionData);
+    console.log('Transaction created successfully');
 
     return NextResponse.json({
       success: true,
@@ -82,10 +66,11 @@ export async function POST(request: NextRequest) {
       }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Deposit API error:', error);
+    console.error('Error details:', error.message, error.stack);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: error.message || 'Internal server error' },
       { status: 500 }
     );
   }

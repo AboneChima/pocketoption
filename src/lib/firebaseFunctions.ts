@@ -52,31 +52,59 @@ export interface FunctionResponse {
   payout?: number;
 }
 
-// Helper function to get current user ID
+// Helper function to get current user ID from session/cookie
 async function getCurrentUserId(): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const user = auth.currentUser;
-    if (user) {
-      resolve(user.uid);
-      return;
-    }
-
-    // Wait for auth state to initialize
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      unsubscribe();
-      if (user) {
-        resolve(user.uid);
-      } else {
-        reject(new Error('User not authenticated'));
-      }
+  try {
+    // Try to get user from session API
+    const response = await fetch('/api/auth/me', {
+      credentials: 'include'
     });
+    
+    if (response.ok) {
+      const userData = await response.json();
+      if (userData && userData.id) {
+        console.log('User authenticated via session:', userData.id);
+        return userData.id;
+      }
+    }
+    
+    // Fallback to Firebase auth
+    return new Promise((resolve, reject) => {
+      const user = auth.currentUser;
+      if (user) {
+        console.log('User authenticated via Firebase:', user.uid);
+        resolve(user.uid);
+        return;
+      }
 
-    // Timeout after 5 seconds
-    setTimeout(() => {
-      unsubscribe();
-      reject(new Error('Authentication timeout'));
-    }, 5000);
-  });
+      console.log('Waiting for auth state...');
+      
+      // Wait for auth state to initialize
+      let timeoutId: NodeJS.Timeout;
+      const unsubscribe = auth.onAuthStateChanged((user) => {
+        clearTimeout(timeoutId);
+        unsubscribe();
+        
+        if (user) {
+          console.log('Auth state changed, user authenticated:', user.uid);
+          resolve(user.uid);
+        } else {
+          console.error('Auth state changed, but no user found');
+          reject(new Error('User not authenticated. Please login again.'));
+        }
+      });
+
+      // Timeout after 10 seconds (increased from 5)
+      timeoutId = setTimeout(() => {
+        unsubscribe();
+        console.error('Authentication timeout - no user found after 10 seconds');
+        reject(new Error('Authentication timeout. Please refresh the page and try again.'));
+      }, 10000);
+    });
+  } catch (error: any) {
+    console.error('Error getting current user ID:', error);
+    throw new Error('Failed to authenticate user');
+  }
 }
 
 // Helper function to make API calls

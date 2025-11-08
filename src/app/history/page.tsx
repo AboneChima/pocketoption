@@ -53,18 +53,26 @@ export default function HistoryPage() {
   const [showFilters, setShowFilters] = useState(false)
 
   useEffect(() => {
-    fetchTransactions()
-  }, [])
+    if (user?.id) {
+      fetchTransactions()
+    }
+  }, [user])
 
   const fetchTransactions = async () => {
     try {
       setLoading(true)
       
-      // Fetch real data from APIs
+      if (!user?.id) {
+        setTransactions([])
+        setLoading(false)
+        return
+      }
+      
+      // Fetch real data from APIs with user ID
       const [depositsRes, withdrawalsRes, tradesRes] = await Promise.all([
-        fetch('/api/deposits'),
-        fetch('/api/withdrawals'),
-        fetch('/api/trades')
+        fetch(`/api/deposits?userId=${user.id}`),
+        fetch(`/api/withdrawals?userId=${user.id}`),
+        fetch(`/api/trades?userId=${user.id}`)
       ])
 
       // Safely parse responses and ensure they are arrays
@@ -75,7 +83,7 @@ export default function HistoryPage() {
       try {
         if (depositsRes.ok) {
           const depositsData = await depositsRes.json()
-          deposits = Array.isArray(depositsData) ? depositsData : []
+          deposits = Array.isArray(depositsData) ? depositsData : (depositsData.deposits || [])
         }
       } catch (e) {
         console.error('Error parsing deposits:', e)
@@ -84,7 +92,7 @@ export default function HistoryPage() {
       try {
         if (withdrawalsRes.ok) {
           const withdrawalsData = await withdrawalsRes.json()
-          withdrawals = Array.isArray(withdrawalsData) ? withdrawalsData : []
+          withdrawals = Array.isArray(withdrawalsData) ? withdrawalsData : (withdrawalsData.withdrawals || [])
         }
       } catch (e) {
         console.error('Error parsing withdrawals:', e)
@@ -93,7 +101,7 @@ export default function HistoryPage() {
       try {
         if (tradesRes.ok) {
           const tradesData = await tradesRes.json()
-          trades = Array.isArray(tradesData) ? tradesData : []
+          trades = Array.isArray(tradesData) ? tradesData : (tradesData.trades || [])
         }
       } catch (e) {
         console.error('Error parsing trades:', e)
@@ -117,20 +125,39 @@ export default function HistoryPage() {
           status: withdrawal.status?.toLowerCase() || 'pending',
           createdAt: withdrawal.createdAt
         })),
-        ...trades.map((trade: any) => ({
-          id: trade.id,
-          type: 'trade' as const,
-          amount: trade.amount,
-          pair: trade.pair,
-          direction: trade.direction,
-          profit: trade.profit,
-          status: trade.result?.toLowerCase() || 'pending',
-          createdAt: trade.createdAt
-        }))
+        ...trades.map((trade: any) => {
+          // Map result to status
+          let status = 'pending'
+          if (trade.result) {
+            const result = trade.result.toLowerCase()
+            if (result === 'won' || result === 'win') status = 'won'
+            else if (result === 'lost' || result === 'loss') status = 'lost'
+          } else if (trade.status) {
+            status = trade.status.toLowerCase()
+          }
+          
+          return {
+            id: trade.id,
+            type: 'trade' as const,
+            amount: trade.amount || 0,
+            pair: trade.pair || trade.asset || 'Unknown',
+            direction: trade.direction,
+            profit: trade.profit || 0,
+            status,
+            createdAt: trade.createdAt || new Date().toISOString()
+          }
+        })
       ]
 
       // Sort by creation date (newest first)
       allTransactions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
+      console.log('Fetched transactions:', {
+        deposits: deposits.length,
+        withdrawals: withdrawals.length,
+        trades: trades.length,
+        total: allTransactions.length
+      })
 
       setTransactions(allTransactions)
     } catch (error) {
@@ -192,15 +219,28 @@ export default function HistoryPage() {
   }
 
   const totalDeposits = filteredTransactions
-    .filter(t => t.type === 'deposit' && t.status === 'confirmed')
-    .reduce((sum, t) => sum + t.amount, 0)
+    .filter(t => t.type === 'deposit' && (
+      t.status?.toLowerCase() === 'confirmed' || 
+      t.status?.toLowerCase() === 'completed' || 
+      t.status?.toLowerCase() === 'approved'
+    ))
+    .reduce((sum, t) => sum + (t.amount || 0), 0)
 
   const totalWithdrawals = filteredTransactions
-    .filter(t => t.type === 'withdrawal' && t.status === 'approved')
-    .reduce((sum, t) => sum + t.amount, 0)
+    .filter(t => t.type === 'withdrawal' && (
+      t.status?.toLowerCase() === 'approved' || 
+      t.status?.toLowerCase() === 'completed' || 
+      t.status?.toLowerCase() === 'confirmed'
+    ))
+    .reduce((sum, t) => sum + (t.amount || 0), 0)
 
   const tradingPnL = filteredTransactions
-    .filter(t => t.type === 'trade')
+    .filter(t => t.type === 'trade' && (
+      t.status?.toLowerCase() === 'won' || 
+      t.status?.toLowerCase() === 'lost' ||
+      t.status?.toLowerCase() === 'win' ||
+      t.status?.toLowerCase() === 'loss'
+    ))
     .reduce((sum, t) => sum + (t.profit || 0), 0)
 
   if (loading) {
@@ -215,52 +255,49 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900/20 to-purple-900/20 text-white">
-      <div className="flex">
-        <DesktopSidebar balance={user?.balance || 0} />
-        
-        <div className="flex-1 lg:ml-0">
-          {/* Header */}
-          <div className="bg-gray-900/95 backdrop-blur-md border-b border-gray-800 sticky top-0 z-40">
-            <div className="max-w-md mx-auto lg:max-w-6xl px-4 py-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <button
-                    onClick={() => router.back()}
-                    className="p-2 hover:bg-white/10 rounded-lg transition-colors lg:hidden"
-                  >
-                    <ArrowLeft className="w-5 h-5" />
-                  </button>
-                  <div>
-                    <h1 className="text-xl font-bold">Transaction History</h1>
-                    <p className="text-sm text-gray-400">Complete trading and financial activity</p>
-                  </div>
+    <div className="min-h-screen bg-gradient-to-br from-[#0F1419] via-[#12192A] to-[#1A2332] text-white">
+      <DesktopSidebar balance={user?.balance || 0} />
+      
+      <div className="lg:ml-64 flex flex-col min-h-screen pb-20 lg:pb-0">
+        {/* Header */}
+        <header className="bg-gradient-to-r from-[#12192A] to-[#1A2332] border-b border-[#1e2435] px-4 lg:px-8 py-4 lg:py-6 shadow-lg sticky top-0 z-40">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={() => router.back()}
+                  className="p-2 hover:bg-[#1e2435] rounded-lg transition-colors"
+                >
+                  <ArrowLeft className="w-5 h-5 text-gray-400" />
+                </button>
+                <div>
+                  <h1 className="text-2xl lg:text-3xl font-bold text-white">Transaction History</h1>
+                  <p className="text-sm text-gray-400 mt-1">Complete trading and financial activity</p>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="hidden lg:flex items-center space-x-2 text-gray-300 border-gray-600 hover:bg-gray-800"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>Export</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={fetchTransactions}
-                    className="p-2 text-gray-300 border-gray-600 hover:bg-gray-800"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                  </Button>
-                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  className="hidden lg:flex items-center space-x-2 px-4 py-2 bg-[#1e2435] hover:bg-[#252d42] rounded-lg transition-colors text-gray-300"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Export</span>
+                </button>
+                <button
+                  onClick={fetchTransactions}
+                  className="p-2 bg-[#1e2435] hover:bg-[#252d42] rounded-lg transition-colors text-gray-300"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
               </div>
             </div>
           </div>
+        </header>
 
-          <div className="max-w-md mx-auto lg:max-w-6xl px-4 py-6 pb-20 lg:pb-6">
+        {/* Main Content */}
+        <main className="flex-1 p-4 lg:p-8 overflow-y-auto">
+          <div className="max-w-7xl mx-auto space-y-6">
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <div className="bg-gradient-to-br from-green-600/20 via-green-500/10 to-transparent rounded-xl p-6 border border-green-500/30 backdrop-blur-sm">
                 <div className="flex items-center justify-between">
                   <div>
@@ -310,7 +347,7 @@ export default function HistoryPage() {
             </div>
 
             {/* Filters and Search */}
-            <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm rounded-xl p-6 mb-6 border border-gray-700/50">
+            <div className="bg-[#12192A]/50 backdrop-blur-xl rounded-2xl border border-[#1e2435] p-6">
               <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
                 {/* Filter Buttons */}
                 <div className="flex flex-wrap gap-2">
@@ -350,8 +387,8 @@ export default function HistoryPage() {
             </div>
 
             {/* Transactions List */}
-            <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm rounded-xl border border-gray-700/50 overflow-hidden">
-              <div className="p-6 border-b border-gray-700/50">
+            <div className="bg-[#12192A]/50 backdrop-blur-xl rounded-2xl border border-[#1e2435] overflow-hidden">
+              <div className="p-6 border-b border-[#1e2435]">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold flex items-center">
                     <FileText className="w-5 h-5 mr-2 text-blue-400" />
@@ -363,7 +400,7 @@ export default function HistoryPage() {
                 </div>
               </div>
 
-              <div className="divide-y divide-gray-700/30">
+              <div className="divide-y divide-[#1e2435]">
                 {filteredTransactions.length === 0 ? (
                   <div className="p-12 text-center">
                     <Activity className="w-12 h-12 text-gray-500 mx-auto mb-4" />
@@ -372,7 +409,7 @@ export default function HistoryPage() {
                   </div>
                 ) : (
                   filteredTransactions.map((transaction) => (
-                    <div key={transaction.id} className="p-6 hover:bg-gray-800/30 transition-colors">
+                    <div key={transaction.id} className="p-6 hover:bg-[#1e2435]/30 transition-colors">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-4">
                           <div className={`p-3 rounded-lg ${
@@ -432,10 +469,10 @@ export default function HistoryPage() {
               </div>
             </div>
           </div>
-        </div>
-      </div>
+        </main>
 
-      <MobileBottomNav />
+        <MobileBottomNav />
+      </div>
     </div>
   )
 }

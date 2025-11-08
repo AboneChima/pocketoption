@@ -9,7 +9,8 @@ import {
   FileText, 
   User, 
   Wallet,
-  LogOut
+  LogOut,
+  TrendingDown
 } from 'lucide-react';
 
 interface DesktopSidebarProps {
@@ -35,6 +36,12 @@ export default function DesktopSidebar({ balance = 0 }: DesktopSidebarProps) {
       active: pathname === '/deposit'
     },
     {
+      name: 'Withdraw',
+      path: '/withdraw',
+      icon: TrendingDown,
+      active: pathname === '/withdraw'
+    },
+    {
       name: 'Portfolio',
       path: '/portfolio',
       icon: BarChart3,
@@ -55,7 +62,7 @@ export default function DesktopSidebar({ balance = 0 }: DesktopSidebarProps) {
   ];
 
   return (
-    <div className="hidden lg:flex lg:flex-col lg:w-64 lg:bg-gradient-to-b lg:from-[#12192A] lg:to-[#0F1419] lg:border-r lg:border-[#1e2435]">
+    <aside className="hidden lg:flex lg:flex-col lg:fixed lg:left-0 lg:top-0 lg:h-screen lg:w-64 lg:bg-gradient-to-b lg:from-[#12192A] lg:to-[#0F1419] lg:border-r lg:border-[#1e2435] lg:z-40">
       {/* Sidebar Header */}
       <div className="p-6 border-b border-[#1e2435]">
         <div className="flex items-center space-x-3">
@@ -95,7 +102,7 @@ export default function DesktopSidebar({ balance = 0 }: DesktopSidebarProps) {
       </div>
 
       {/* Navigation Menu */}
-      <nav className="flex-1 p-4 space-y-2">
+      <nav className="flex-1 p-4 space-y-1">
         {navigationItems.map((item) => {
           const Icon = item.icon;
           return (
@@ -103,15 +110,20 @@ export default function DesktopSidebar({ balance = 0 }: DesktopSidebarProps) {
               key={item.path}
               onClick={() => router.push(item.path)}
               className={`
-                w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors
+                w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200
                 ${item.active 
-                  ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' 
-                  : 'hover:bg-white/5 text-gray-300 hover:text-white'
+                  ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-white border border-blue-500/30 shadow-lg shadow-blue-500/10' 
+                  : 'hover:bg-white/5 text-gray-400 hover:text-white hover:border hover:border-white/10'
                 }
               `}
             >
-              <Icon className="w-4 h-4" />
-              <span className="text-sm font-medium">{item.name}</span>
+              <div className={`p-2 rounded-lg ${item.active ? 'bg-blue-500/20' : 'bg-white/5'}`}>
+                <Icon className="w-5 h-5" />
+              </div>
+              <span className="text-sm font-semibold">{item.name}</span>
+              {item.active && (
+                <div className="ml-auto w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+              )}
             </button>
           );
         })}
@@ -127,6 +139,6 @@ export default function DesktopSidebar({ balance = 0 }: DesktopSidebarProps) {
           <span className="text-sm font-medium">Logout</span>
         </button>
       </div>
-    </div>
+    </aside>
   );
 }

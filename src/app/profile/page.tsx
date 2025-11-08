@@ -165,38 +165,39 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900/20 to-purple-900/20 text-white">
-      <div className="flex">
-        <DesktopSidebar balance={userBalance} />
-        
-        <div className="flex-1 lg:ml-0">
-          {/* Header */}
-          <div className="bg-gray-900/95 backdrop-blur-md border-b border-gray-800 sticky top-0 z-40">
-            <div className="max-w-md mx-auto lg:max-w-6xl px-4 py-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <button
-                    onClick={() => router.back()}
-                    className="p-2 hover:bg-white/10 rounded-lg transition-colors lg:hidden"
-                  >
-                    <ArrowLeft className="w-5 h-5" />
-                  </button>
-                  <div>
-                    <h1 className="text-xl font-bold">Profile & Settings</h1>
-                    <p className="text-sm text-gray-400">Manage your trading account</p>
-                  </div>
-                </div>
+    <div className="min-h-screen bg-gradient-to-br from-[#0F1419] via-[#12192A] to-[#1A2332] text-white">
+      <DesktopSidebar balance={userBalance} />
+      
+      <div className="lg:ml-64 flex flex-col min-h-screen pb-20 lg:pb-0">
+        {/* Header */}
+        <header className="bg-gradient-to-r from-[#12192A] to-[#1A2332] border-b border-[#1e2435] px-4 lg:px-8 py-4 lg:py-6 shadow-lg sticky top-0 z-40">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
                 <button
-                  onClick={() => setIsEditing(!isEditing)}
-                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                  onClick={() => router.back()}
+                  className="p-2 hover:bg-white/10 rounded-lg transition-colors lg:hidden"
                 >
-                  <Edit3 className="w-5 h-5" />
+                  <ArrowLeft className="w-5 h-5" />
                 </button>
+                <div>
+                  <h1 className="text-xl font-bold">Profile & Settings</h1>
+                  <p className="text-sm text-gray-400">Manage your trading account</p>
+                </div>
               </div>
+              <button
+                onClick={() => setIsEditing(!isEditing)}
+                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <Edit3 className="w-5 h-5" />
+              </button>
             </div>
           </div>
+        </header>
 
-          <div className="max-w-md mx-auto lg:max-w-6xl px-4 py-6 pb-20 lg:pb-6">
+        {/* Main Content */}
+        <main className="flex-1 p-4 lg:p-8 overflow-y-auto">
+          <div className="max-w-7xl mx-auto space-y-6">
             {/* Profile Header */}
             <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm rounded-xl p-6 mb-6 border border-gray-700/50">
               <div className="flex flex-col lg:flex-row items-start lg:items-center space-y-4 lg:space-y-0 lg:space-x-6">
@@ -462,10 +463,10 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
-        </div>
-      </div>
+        </main>
 
-      <MobileBottomNav />
+        <MobileBottomNav />
+      </div>
     </div>
   )
 }

@@ -30,8 +30,14 @@ export default function AdminLoginPage() {
       localStorage.setItem('admin_email', email)
       localStorage.setItem('admin_login_time', new Date().toISOString())
       
-      // Redirect to admin dashboard
-      router.push('/admin')
+      console.log('Admin login successful, redirecting...')
+      console.log('localStorage set:', {
+        authenticated: localStorage.getItem('admin_authenticated'),
+        email: localStorage.getItem('admin_email')
+      })
+      
+      // Redirect to admin dashboard using window.location for reliability
+      window.location.href = '/admin'
     } else {
       setError('Invalid admin credentials. Please try again.')
       setIsLoading(false)
