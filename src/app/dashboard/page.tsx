@@ -824,7 +824,7 @@ export default function DashboardPage() {
           <div className="w-full lg:max-w-4xl bg-gradient-to-b from-[#12192A] to-[#0E1320] rounded-t-2xl lg:rounded-2xl max-h-[85vh] lg:max-h-[90vh] flex flex-col shadow-2xl animate-in slide-in-from-bottom lg:slide-in-from-top duration-300" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 lg:p-6 border-b border-[#1e2435] flex-shrink-0">
               <h3 className="text-lg lg:text-xl font-semibold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                {bottomTabs.find(tab => tab.id === activeBottomTab)?.label}
+                {activeBottomTab}
               </h3>
               <button
                 onClick={() => setShowBottomSheet(false)}

@@ -298,6 +298,19 @@ export default function AdminPage() {
             </div>
           </div>
 
+          {/* Back to User Dashboard Button */}
+          <div className="p-4 border-b border-[#1e2435]">
+            <button
+              onClick={() => router.push('/dashboard')}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-300 bg-gradient-to-r from-green-500/20 to-emerald-600/10 border border-green-500/30 text-white hover:from-green-500/30 hover:to-emerald-600/20 ${
+                !isSidebarOpen ? 'justify-center' : ''
+              }`}
+            >
+              <ArrowLeft className="w-5 h-5 text-green-400" />
+              {isSidebarOpen && <span className="font-medium">Back to Dashboard</span>}
+            </button>
+          </div>
+
           {/* Navigation */}
           <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
             {[
