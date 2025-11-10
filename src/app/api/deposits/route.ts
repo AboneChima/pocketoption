@@ -1,9 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { adminDb } from '@/lib/firebaseAdmin'
 
 export async function GET(request: NextRequest) {
   try {
-    // Return empty deposits array since we're removing mock data
-    return NextResponse.json([])
+    const { searchParams } = new URL(request.url)
+    const userId = searchParams.get('userId')
+
+    if (!userId) {
+      return NextResponse.json({ error: 'User ID required' }, { status: 400 })
+    }
+
+    // Fetch user's deposits from Firestore
+    const depositsSnapshot = await adminDb
+      .collection('deposits')
+      .where('userId', '==', userId)
+      .orderBy('createdAt', 'desc')
+      .get()
+
+    const deposits = depositsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }))
+
+    return NextResponse.json({ deposits })
   } catch (error) {
     console.error('Error fetching deposits:', error)
     return NextResponse.json(

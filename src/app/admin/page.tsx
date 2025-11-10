@@ -104,6 +104,15 @@ export default function AdminPage() {
   const [adminEmail, setAdminEmail] = useState<string>('')
   const [isAuthChecking, setIsAuthChecking] = useState(true)
   const [showNotifications, setShowNotifications] = useState(false)
+  
+  // User history modal states
+  const [viewingUser, setViewingUser] = useState<User | null>(null)
+  const [userHistory, setUserHistory] = useState<{
+    deposits: Deposit[]
+    withdrawals: Withdrawal[]
+    trades: Trade[]
+  }>({ deposits: [], withdrawals: [], trades: [] })
+  const [loadingHistory, setLoadingHistory] = useState(false)
 
   // Check admin authentication
   useEffect(() => {
@@ -242,6 +251,52 @@ export default function AdminPage() {
       console.error('Deposit action error:', error)
       alert(`Failed to ${status.toLowerCase()} deposit`)
     }
+  }
+
+  const fetchUserHistory = async (userId: string) => {
+    setLoadingHistory(true)
+    try {
+      const [depositsRes, withdrawalsRes, tradesRes] = await Promise.all([
+        fetch(`/api/deposits?userId=${userId}`),
+        fetch(`/api/withdrawals?userId=${userId}`),
+        fetch(`/api/trades?userId=${userId}`)
+      ])
+
+      let userDeposits: Deposit[] = []
+      let userWithdrawals: Withdrawal[] = []
+      let userTrades: Trade[] = []
+
+      if (depositsRes.ok) {
+        const data = await depositsRes.json()
+        userDeposits = Array.isArray(data) ? data : (data.deposits || [])
+      }
+
+      if (withdrawalsRes.ok) {
+        const data = await withdrawalsRes.json()
+        userWithdrawals = Array.isArray(data) ? data : (data.withdrawals || [])
+      }
+
+      if (tradesRes.ok) {
+        const data = await tradesRes.json()
+        userTrades = Array.isArray(data) ? data : (data.trades || [])
+      }
+
+      setUserHistory({
+        deposits: userDeposits,
+        withdrawals: userWithdrawals,
+        trades: userTrades
+      })
+    } catch (error) {
+      console.error('Failed to fetch user history:', error)
+      setUserHistory({ deposits: [], withdrawals: [], trades: [] })
+    } finally {
+      setLoadingHistory(false)
+    }
+  }
+
+  const handleViewUser = (user: User) => {
+    setViewingUser(user)
+    fetchUserHistory(user.id)
   }
 
   if (isAuthChecking) {
@@ -1069,7 +1124,11 @@ export default function AdminPage() {
                           <Edit className="w-4 h-4" />
                           <span>Edit</span>
                         </button>
-                        <button className="px-4 py-2 bg-[#1e2435] border border-[#252d42] rounded-lg text-gray-400 hover:text-white hover:border-blue-500/30 transition-all duration-300">
+                        <button 
+                          onClick={() => handleViewUser(user)}
+                          className="px-4 py-2 bg-[#1e2435] border border-[#252d42] rounded-lg text-gray-400 hover:text-white hover:border-blue-500/30 transition-all duration-300"
+                          title="View transaction history"
+                        >
                           <Eye className="w-4 h-4" />
                         </button>
                       </div>
@@ -1463,6 +1522,269 @@ export default function AdminPage() {
                   Cancel
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* User History Modal */}
+      {viewingUser && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200 overflow-y-auto">
+          <div className="bg-gradient-to-br from-[#12192A] to-[#0F1419] rounded-2xl w-full max-w-6xl border border-[#252d42] shadow-2xl animate-in zoom-in duration-200 my-8">
+            {/* Header */}
+            <div className="sticky top-0 bg-gradient-to-r from-[#12192A] to-[#1A2332] border-b border-[#252d42] p-6 rounded-t-2xl z-10">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
+                    <span className="text-white font-bold text-xl">
+                      {viewingUser.email.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-white">{viewingUser.email}</h3>
+                    <p className="text-sm text-gray-400">
+                      {viewingUser.firstName || viewingUser.lastName 
+                        ? `${viewingUser.firstName} ${viewingUser.lastName}` 
+                        : 'Transaction History'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setViewingUser(null)
+                    setUserHistory({ deposits: [], withdrawals: [], trades: [] })
+                  }}
+                  className="p-2 rounded-lg bg-[#1e2435] hover:bg-[#252d42] transition-colors"
+                >
+                  <X className="w-6 h-6 text-gray-400" />
+                </button>
+              </div>
+
+              {/* User Stats */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mt-6">
+                <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/5 rounded-xl p-4 border border-green-500/20">
+                  <p className="text-sm text-gray-400 mb-1">Current Balance</p>
+                  <p className="text-2xl font-bold text-green-400">{formatCurrency(viewingUser.balance)}</p>
+                </div>
+                <div className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 rounded-xl p-4 border border-blue-500/20">
+                  <p className="text-sm text-gray-400 mb-1">Total Deposits</p>
+                  <p className="text-2xl font-bold text-blue-400">
+                    {formatCurrency(userHistory.deposits.reduce((sum, d) => sum + d.amount, 0))}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">{userHistory.deposits.length} transactions</p>
+                </div>
+                <div className="bg-gradient-to-br from-red-500/10 to-red-500/5 rounded-xl p-4 border border-red-500/20">
+                  <p className="text-sm text-gray-400 mb-1">Total Withdrawals</p>
+                  <p className="text-2xl font-bold text-red-400">
+                    {formatCurrency(userHistory.withdrawals.reduce((sum, w) => sum + w.amount, 0))}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">{userHistory.withdrawals.length} transactions</p>
+                </div>
+                <div className="bg-gradient-to-br from-purple-500/10 to-purple-500/5 rounded-xl p-4 border border-purple-500/20">
+                  <p className="text-sm text-gray-400 mb-1">Total Trades</p>
+                  <p className="text-2xl font-bold text-purple-400">{userHistory.trades.length}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    P&L: {formatCurrency(userHistory.trades.reduce((sum, t) => sum + (t.profit || 0), 0))}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 max-h-[60vh] overflow-y-auto">
+              {loadingHistory ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-gray-400">Loading transaction history...</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Deposits Section */}
+                  <div>
+                    <div className="flex items-center space-x-3 mb-4">
+                      <div className="p-2 rounded-lg bg-green-500/20">
+                        <DollarSign className="w-5 h-5 text-green-400" />
+                      </div>
+                      <h4 className="text-lg font-semibold text-white">
+                        Deposits ({userHistory.deposits.length})
+                      </h4>
+                    </div>
+                    {userHistory.deposits.length === 0 ? (
+                      <div className="bg-[#1e2435]/30 rounded-xl p-8 text-center">
+                        <p className="text-gray-400">No deposits found</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {userHistory.deposits.map((deposit) => (
+                          <div key={deposit.id} className="bg-[#1e2435]/50 rounded-xl p-4 hover:bg-[#1e2435] transition-colors">
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-3">
+                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                    deposit.status.toLowerCase() === 'confirmed' || deposit.status.toLowerCase() === 'approved'
+                                      ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                                      : deposit.status.toLowerCase() === 'pending'
+                                      ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                                      : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                                  }`}>
+                                    {deposit.status}
+                                  </span>
+                                  <span className="text-sm text-gray-400">{deposit.currency}</span>
+                                  <span className="text-xs text-gray-500">
+                                    {new Date(deposit.createdAt).toLocaleString()}
+                                  </span>
+                                </div>
+                                {deposit.txHash && (
+                                  <p className="text-xs text-gray-500 mt-1 font-mono truncate">
+                                    TX: {deposit.txHash}
+                                  </p>
+                                )}
+                                {deposit.adminNotes && (
+                                  <p className="text-xs text-gray-400 mt-1">Note: {deposit.adminNotes}</p>
+                                )}
+                              </div>
+                              <div className="text-right ml-4">
+                                <p className="text-lg font-bold text-green-400">
+                                  +{formatCurrency(deposit.amount)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Withdrawals Section */}
+                  <div>
+                    <div className="flex items-center space-x-3 mb-4">
+                      <div className="p-2 rounded-lg bg-red-500/20">
+                        <TrendingDown className="w-5 h-5 text-red-400" />
+                      </div>
+                      <h4 className="text-lg font-semibold text-white">
+                        Withdrawals ({userHistory.withdrawals.length})
+                      </h4>
+                    </div>
+                    {userHistory.withdrawals.length === 0 ? (
+                      <div className="bg-[#1e2435]/30 rounded-xl p-8 text-center">
+                        <p className="text-gray-400">No withdrawals found</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {userHistory.withdrawals.map((withdrawal) => (
+                          <div key={withdrawal.id} className="bg-[#1e2435]/50 rounded-xl p-4 hover:bg-[#1e2435] transition-colors">
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-3">
+                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                    withdrawal.status.toLowerCase() === 'completed' || withdrawal.status.toLowerCase() === 'approved'
+                                      ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                                      : withdrawal.status.toLowerCase() === 'pending'
+                                      ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                                      : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                                  }`}>
+                                    {withdrawal.status}
+                                  </span>
+                                  <span className="text-sm text-gray-400">{withdrawal.currency}</span>
+                                  <span className="text-xs text-gray-500">
+                                    {new Date(withdrawal.createdAt).toLocaleString()}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1 font-mono truncate">
+                                  To: {withdrawal.walletAddress}
+                                </p>
+                                {withdrawal.adminNote && (
+                                  <p className="text-xs text-gray-400 mt-1">Note: {withdrawal.adminNote}</p>
+                                )}
+                              </div>
+                              <div className="text-right ml-4">
+                                <p className="text-lg font-bold text-red-400">
+                                  -{formatCurrency(withdrawal.amount)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Trades Section */}
+                  <div>
+                    <div className="flex items-center space-x-3 mb-4">
+                      <div className="p-2 rounded-lg bg-purple-500/20">
+                        <TrendingUp className="w-5 h-5 text-purple-400" />
+                      </div>
+                      <h4 className="text-lg font-semibold text-white">
+                        Trades ({userHistory.trades.length})
+                      </h4>
+                    </div>
+                    {userHistory.trades.length === 0 ? (
+                      <div className="bg-[#1e2435]/30 rounded-xl p-8 text-center">
+                        <p className="text-gray-400">No trades found</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {userHistory.trades.map((trade) => (
+                          <div key={trade.id} className="bg-[#1e2435]/50 rounded-xl p-4 hover:bg-[#1e2435] transition-colors">
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-3">
+                                  <span className="text-white font-medium">{trade.pair}</span>
+                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                    trade.direction?.toLowerCase() === 'up' || trade.direction?.toLowerCase() === 'call'
+                                      ? 'bg-green-500/20 text-green-400'
+                                      : 'bg-red-500/20 text-red-400'
+                                  }`}>
+                                    {trade.direction?.toUpperCase()}
+                                  </span>
+                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                    trade.status.toLowerCase() === 'won' || trade.status.toLowerCase() === 'win'
+                                      ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                                      : trade.status.toLowerCase() === 'lost' || trade.status.toLowerCase() === 'loss'
+                                      ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                                      : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                                  }`}>
+                                    {trade.status}
+                                  </span>
+                                  <span className="text-xs text-gray-500">
+                                    {new Date(trade.createdAt).toLocaleString()}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="text-right ml-4">
+                                <p className="text-sm text-gray-400">Amount: {formatCurrency(trade.amount)}</p>
+                                {trade.profit !== undefined && (
+                                  <p className={`text-lg font-bold ${
+                                    trade.profit >= 0 ? 'text-green-400' : 'text-red-400'
+                                  }`}>
+                                    {trade.profit >= 0 ? '+' : ''}{formatCurrency(trade.profit)}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="sticky bottom-0 bg-gradient-to-r from-[#12192A] to-[#1A2332] border-t border-[#252d42] p-6 rounded-b-2xl">
+              <button
+                onClick={() => {
+                  setViewingUser(null)
+                  setUserHistory({ deposits: [], withdrawals: [], trades: [] })
+                }}
+                className="w-full px-4 py-3 bg-[#1e2435] border border-[#252d42] rounded-xl text-gray-400 hover:text-white hover:border-gray-400 transition-all duration-300"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

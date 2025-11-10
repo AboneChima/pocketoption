@@ -63,10 +63,13 @@ export default function HistoryPage() {
       setLoading(true)
       
       if (!user?.id) {
+        console.log('No user ID available, skipping fetch')
         setTransactions([])
         setLoading(false)
         return
       }
+      
+      console.log('Fetching transactions for user:', user.id)
       
       // Fetch real data from APIs with user ID
       const [depositsRes, withdrawalsRes, tradesRes] = await Promise.all([
@@ -74,6 +77,12 @@ export default function HistoryPage() {
         fetch(`/api/withdrawals?userId=${user.id}`),
         fetch(`/api/trades?userId=${user.id}`)
       ])
+      
+      console.log('API responses:', {
+        deposits: depositsRes.status,
+        withdrawals: withdrawalsRes.status,
+        trades: tradesRes.status
+      })
 
       // Safely parse responses and ensure they are arrays
       let deposits = []
@@ -218,6 +227,13 @@ export default function HistoryPage() {
     })
   }
 
+  // Debug: Log all transactions to see their statuses
+  console.log('All transactions:', filteredTransactions.map(t => ({ 
+    type: t.type, 
+    status: t.status, 
+    amount: t.amount 
+  })))
+
   const totalDeposits = filteredTransactions
     .filter(t => t.type === 'deposit' && (
       t.status?.toLowerCase() === 'confirmed' || 
@@ -233,6 +249,8 @@ export default function HistoryPage() {
       t.status?.toLowerCase() === 'confirmed'
     ))
     .reduce((sum, t) => sum + (t.amount || 0), 0)
+  
+  console.log('Totals calculated:', { totalDeposits, totalWithdrawals, tradingPnL: 0 })
 
   const tradingPnL = filteredTransactions
     .filter(t => t.type === 'trade' && (
@@ -400,71 +418,136 @@ export default function HistoryPage() {
                 </div>
               </div>
 
-              <div className="divide-y divide-[#1e2435]">
+              {/* Modern Grid Container */}
+              <div className="p-6">
                 {filteredTransactions.length === 0 ? (
-                  <div className="p-12 text-center">
-                    <Activity className="w-12 h-12 text-gray-500 mx-auto mb-4" />
-                    <p className="text-gray-400 text-lg mb-2">No transactions found</p>
-                    <p className="text-gray-500 text-sm">Try adjusting your filters or search terms</p>
+                  <div className="flex flex-col items-center justify-center py-16">
+                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500/10 to-purple-500/10 flex items-center justify-center mb-6">
+                      <Activity className="w-10 h-10 text-gray-500" />
+                    </div>
+                    <p className="text-xl font-semibold text-gray-300 mb-2">No transactions found</p>
+                    <p className="text-sm text-gray-500">Try adjusting your filters or search terms</p>
                   </div>
                 ) : (
-                  filteredTransactions.map((transaction) => (
-                    <div key={transaction.id} className="p-6 hover:bg-[#1e2435]/30 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                          <div className={`p-3 rounded-lg ${
-                            transaction.type === 'deposit' ? 'bg-green-500/20' :
-                            transaction.type === 'withdrawal' ? 'bg-red-500/20' :
-                            'bg-blue-500/20'
-                          }`}>
-                            {getTransactionIcon(transaction)}
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                    {filteredTransactions.map((transaction) => (
+                      <div 
+                        key={transaction.id} 
+                        className="group relative bg-gradient-to-br from-[#1e2838] via-[#1a2332] to-[#151d2a] rounded-2xl p-6 border border-[#2d3548] hover:border-[#4a5568] transition-all duration-300 hover:shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-1"
+                      >
+                        {/* Decorative gradient overlay */}
+                        <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                        
+                        {/* Content */}
+                        <div className="relative">
+                          {/* Header */}
+                          <div className="flex items-start justify-between mb-5">
+                            <div className="flex items-center gap-3">
+                              <div className={`p-3 rounded-xl transition-transform duration-300 group-hover:scale-110 ${
+                                transaction.type === 'deposit' 
+                                  ? 'bg-gradient-to-br from-green-500/20 to-emerald-500/10 border border-green-500/30 shadow-lg shadow-green-500/20' 
+                                  : transaction.type === 'withdrawal' 
+                                  ? 'bg-gradient-to-br from-red-500/20 to-pink-500/10 border border-red-500/30 shadow-lg shadow-red-500/20' 
+                                  : 'bg-gradient-to-br from-blue-500/20 to-purple-500/10 border border-blue-500/30 shadow-lg shadow-blue-500/20'
+                              }`}>
+                                {getTransactionIcon(transaction)}
+                              </div>
+                              <div>
+                                <h4 className="text-base font-bold text-white capitalize mb-1">
+                                  {transaction.type}
+                                </h4>
+                                <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider ${getStatusColor(transaction.status)}`}>
+                                  {transaction.status}
+                                </span>
+                              </div>
+                            </div>
                           </div>
-                          
-                          <div>
-                            <div className="flex items-center space-x-3">
-                              <p className="font-semibold text-white capitalize">
-                                {transaction.type}
-                              </p>
-                              <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(transaction.status)}`}>
-                                {transaction.status}
+
+                          {/* Amount Section */}
+                          <div className="mb-5">
+                            <div className="flex items-baseline gap-2 mb-1">
+                              <span className={`text-4xl font-black tracking-tight ${
+                                transaction.type === 'deposit' ? 'text-green-400' :
+                                transaction.type === 'withdrawal' ? 'text-red-400' :
+                                'text-white'
+                              }`}>
+                                {transaction.type === 'deposit' ? '+' : transaction.type === 'withdrawal' ? '-' : ''}
+                                {formatCurrency(transaction.amount)}
                               </span>
                             </div>
-                            
-                            <div className="flex items-center space-x-4 mt-1">
-                              <p className="text-sm text-gray-400">
-                                {transaction.type === 'trade' ? (
-                                  <>
-                                    {transaction.pair} • {transaction.direction?.toUpperCase()}
-                                  </>
-                                ) : (
-                                  <>
-                                    {transaction.currency} • {transaction.type === 'deposit' ? 'Credit' : 'Debit'}
-                                  </>
-                                )}
-                              </p>
-                              <div className="flex items-center text-xs text-gray-500">
-                                <Clock className="w-3 h-3 mr-1" />
-                                {formatTime(transaction.createdAt)}
+                            {transaction.type === 'trade' && transaction.profit !== undefined && (
+                              <div className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg ${
+                                transaction.profit >= 0 
+                                  ? 'bg-green-500/10 border border-green-500/30' 
+                                  : 'bg-red-500/10 border border-red-500/30'
+                              }`}>
+                                <span className="text-xs text-gray-400 font-medium">P&L:</span>
+                                <span className={`text-sm font-bold ${
+                                  transaction.profit >= 0 ? 'text-green-400' : 'text-red-400'
+                                }`}>
+                                  {transaction.profit >= 0 ? '+' : ''}{formatCurrency(transaction.profit)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Details Section */}
+                          <div className="space-y-3 pt-5 border-t border-[#2d3548]">
+                            {/* Currency/Pair */}
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                {transaction.type === 'trade' ? 'Pair' : 'Currency'}
+                              </span>
+                              <span className="text-sm font-bold text-white">
+                                {transaction.type === 'trade' ? transaction.pair : transaction.currency}
+                              </span>
+                            </div>
+
+                            {/* Direction for Trades */}
+                            {transaction.type === 'trade' && transaction.direction && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Direction</span>
+                                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg ${
+                                  transaction.direction.toLowerCase() === 'up' || transaction.direction.toLowerCase() === 'call'
+                                    ? 'bg-green-500/10 border border-green-500/30'
+                                    : 'bg-red-500/10 border border-red-500/30'
+                                }`}>
+                                  {transaction.direction.toLowerCase() === 'up' || transaction.direction.toLowerCase() === 'call' ? (
+                                    <TrendingUp className="w-4 h-4 text-green-400" />
+                                  ) : (
+                                    <TrendingDown className="w-4 h-4 text-red-400" />
+                                  )}
+                                  <span className={`text-sm font-bold ${
+                                    transaction.direction.toLowerCase() === 'up' || transaction.direction.toLowerCase() === 'call'
+                                      ? 'text-green-400'
+                                      : 'text-red-400'
+                                  }`}>
+                                    {transaction.direction.toUpperCase()}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Date & Time */}
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Date</span>
+                              <div className="flex items-center gap-1.5 text-gray-300">
+                                <Clock className="w-4 h-4 text-gray-500" />
+                                <span className="text-sm font-medium">
+                                  {new Date(transaction.createdAt).toLocaleString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </span>
                               </div>
                             </div>
                           </div>
                         </div>
-
-                        <div className="text-right">
-                          <p className="font-semibold text-white">
-                            {formatCurrency(transaction.amount)}
-                          </p>
-                          {transaction.type === 'trade' && transaction.profit !== undefined && (
-                            <p className={`text-sm font-medium ${
-                              transaction.profit >= 0 ? 'text-green-400' : 'text-red-400'
-                            }`}>
-                              {transaction.profit >= 0 ? '+' : ''}{formatCurrency(transaction.profit)} P&L
-                            </p>
-                          )}
-                        </div>
                       </div>
-                    </div>
-                  ))
+                    ))}
+                  </div>
                 )}
               </div>
             </div>

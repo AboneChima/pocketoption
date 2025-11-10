@@ -51,19 +51,98 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchUserStats()
-    fetchUserBalance()
-  }, [])
+    if (user?.id) {
+      fetchUserStats()
+      fetchUserBalance()
+    }
+  }, [user?.id])
 
   const fetchUserStats = async () => {
     try {
-      const response = await fetch('/api/user/stats')
+      if (!user?.id) return
+      
+      // Fetch all trades for the user
+      const response = await fetch(`/api/trades?userId=${user.id}`)
       if (response.ok) {
-        const stats = await response.json()
-        setUserStats(stats)
+        const data = await response.json()
+        const trades = Array.isArray(data) ? data : (data.trades || [])
+        
+        // Calculate stats from trades
+        const totalTrades = trades.length
+        const wonTrades = trades.filter((t: any) => 
+          t.status?.toLowerCase() === 'won' || 
+          t.status?.toLowerCase() === 'win' ||
+          t.result?.toLowerCase() === 'won' ||
+          t.result?.toLowerCase() === 'win'
+        ).length
+        const lostTrades = trades.filter((t: any) => 
+          t.status?.toLowerCase() === 'lost' || 
+          t.status?.toLowerCase() === 'loss' ||
+          t.result?.toLowerCase() === 'lost' ||
+          t.result?.toLowerCase() === 'loss'
+        ).length
+        
+        const winRate = totalTrades > 0 ? Math.round((wonTrades / totalTrades) * 100) : 0
+        
+        const totalProfit = trades.reduce((sum: number, t: any) => {
+          if (t.profit !== undefined) return sum + t.profit
+          if (t.result === 'won' || t.result === 'win') {
+            return sum + (t.amount * (t.payout || 0.78))
+          }
+          if (t.result === 'lost' || t.result === 'loss') {
+            return sum - t.amount
+          }
+          return sum
+        }, 0)
+        
+        // Calculate current streak
+        let currentStreak = 0
+        for (let i = 0; i < trades.length; i++) {
+          const trade = trades[i]
+          const isWin = trade.status?.toLowerCase() === 'won' || 
+                       trade.status?.toLowerCase() === 'win' ||
+                       trade.result?.toLowerCase() === 'won' ||
+                       trade.result?.toLowerCase() === 'win'
+          const isLoss = trade.status?.toLowerCase() === 'lost' || 
+                        trade.status?.toLowerCase() === 'loss' ||
+                        trade.result?.toLowerCase() === 'lost' ||
+                        trade.result?.toLowerCase() === 'loss'
+          
+          if (i === 0) {
+            currentStreak = isWin ? 1 : isLoss ? -1 : 0
+          } else {
+            const prevIsWin = currentStreak > 0
+            const prevIsLoss = currentStreak < 0
+            
+            if (isWin && prevIsWin) {
+              currentStreak++
+            } else if (isLoss && prevIsLoss) {
+              currentStreak--
+            } else {
+              break
+            }
+          }
+        }
+        
+        setUserStats({
+          totalTrades,
+          wonTrades,
+          lostTrades,
+          winRate,
+          totalProfit,
+          currentStreak
+        })
       }
     } catch (error) {
       console.error('Error fetching user stats:', error)
+      setUserStats({
+        totalTrades: 0,
+        wonTrades: 0,
+        lostTrades: 0,
+        winRate: 0,
+        totalProfit: 0,
+        currentStreak: 0
+      })
     }
   }
 

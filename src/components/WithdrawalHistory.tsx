@@ -37,7 +37,9 @@ export default function WithdrawalHistory() {
       
       if (response.ok) {
         const data = await response.json()
-        setWithdrawals(Array.isArray(data) ? data : [])
+        const withdrawalsList = Array.isArray(data) ? data : (data.withdrawals || [])
+        console.log('Fetched withdrawals:', withdrawalsList.length)
+        setWithdrawals(withdrawalsList)
       }
     } catch (error) {
       console.error('Failed to fetch withdrawals:', error)
@@ -130,74 +132,109 @@ export default function WithdrawalHistory() {
             <p className="text-gray-500 text-sm">Your withdrawal history will appear here</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {withdrawals.map((withdrawal) => (
               <div
                 key={withdrawal.id}
-                className="bg-[#1e2435]/50 rounded-xl p-4 border border-[#252d42] hover:border-[#2d3548] transition-all duration-300"
+                className="group bg-gradient-to-r from-[#1A2332]/80 to-[#12192A]/80 rounded-xl p-5 hover:from-[#1e2838] hover:to-[#151d2e] transition-all duration-300 border border-[#252d42]/30 hover:border-[#3d4a5c]/50 hover:shadow-lg hover:shadow-red-500/5"
               >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center space-x-3">
-                    {getStatusIcon(withdrawal.status)}
+                {/* Header: Status + Amount */}
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2.5 rounded-xl transition-transform duration-300 group-hover:scale-110 ${
+                      withdrawal.status === 'completed'
+                        ? 'bg-gradient-to-br from-green-500/20 via-emerald-500/15 to-green-600/10 border border-green-500/40 shadow-lg shadow-green-500/10'
+                        : withdrawal.status === 'rejected'
+                        ? 'bg-gradient-to-br from-red-500/20 via-pink-500/15 to-red-600/10 border border-red-500/40 shadow-lg shadow-red-500/10'
+                        : 'bg-gradient-to-br from-yellow-500/20 via-orange-500/15 to-yellow-600/10 border border-yellow-500/40 shadow-lg shadow-yellow-500/10'
+                    }`}>
+                      {getStatusIcon(withdrawal.status)}
+                    </div>
                     <div>
-                      <p className="text-white font-medium">
+                      <p className="text-white font-bold text-lg">
                         {formatCurrency(withdrawal.amount)}
                       </p>
-                      <p className="text-sm text-gray-400">
+                      <p className="text-sm text-gray-400 font-medium">
                         {withdrawal.currency} • {withdrawal.network}
                       </p>
                     </div>
                   </div>
                   <span
-                    className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide border ${getStatusColor(
                       withdrawal.status
                     )}`}
                   >
-                    {withdrawal.status.charAt(0).toUpperCase() + withdrawal.status.slice(1)}
+                    {withdrawal.status}
                   </span>
                 </div>
 
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center justify-between text-gray-400">
-                    <span>Wallet Address:</span>
-                    <span className="font-mono text-xs text-gray-300">
-                      {withdrawal.walletAddress.slice(0, 8)}...{withdrawal.walletAddress.slice(-8)}
-                    </span>
+                {/* Details Grid */}
+                <div className="space-y-3">
+                  {/* Wallet Address */}
+                  <div className="bg-[#12192A]/50 rounded-lg p-3 border border-[#1e2435]">
+                    <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">Wallet Address</p>
+                    <p className="font-mono text-sm text-gray-300 break-all">
+                      {withdrawal.walletAddress}
+                    </p>
                   </div>
-                  {withdrawal.gasFee && (
-                    <div className="flex items-center justify-between text-gray-400">
-                      <span>Gas Fee:</span>
-                      <span className="text-yellow-400">
-                        {formatCurrency(withdrawal.gasFee)}
-                      </span>
-                    </div>
-                  )}
-                  {withdrawal.totalAmount && (
-                    <div className="flex items-center justify-between text-gray-400 font-semibold">
-                      <span>Total Deducted:</span>
-                      <span className="text-white">
-                        {formatCurrency(withdrawal.totalAmount)}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between text-gray-400">
-                    <span>{withdrawal.status === 'completed' ? 'Completed:' : 'Requested:'}</span>
-                    <span className="text-gray-300">
-                      {new Date(withdrawal.createdAt).toLocaleString()}
-                    </span>
+
+                  {/* Financial Details */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {withdrawal.gasFee && (
+                      <div className="bg-[#12192A]/50 rounded-lg p-3 border border-[#1e2435]">
+                        <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">Gas Fee</p>
+                        <p className="text-sm font-semibold text-yellow-400">
+                          {formatCurrency(withdrawal.gasFee)}
+                        </p>
+                      </div>
+                    )}
+                    {withdrawal.totalAmount && (
+                      <div className="bg-[#12192A]/50 rounded-lg p-3 border border-[#1e2435]">
+                        <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">Total Deducted</p>
+                        <p className="text-sm font-bold text-white">
+                          {formatCurrency(withdrawal.totalAmount)}
+                        </p>
+                      </div>
+                    )}
                   </div>
-                  {withdrawal.processedAt && withdrawal.processedAt !== withdrawal.createdAt && (
-                    <div className="flex items-center justify-between text-gray-400">
-                      <span>Processed:</span>
-                      <span className="text-gray-300">
-                        {new Date(withdrawal.processedAt).toLocaleString()}
-                      </span>
+
+                  {/* Timestamps */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="bg-[#12192A]/50 rounded-lg p-3 border border-[#1e2435]">
+                      <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">
+                        {withdrawal.status === 'completed' ? 'Completed' : 'Requested'}
+                      </p>
+                      <p className="text-sm text-gray-300">
+                        {new Date(withdrawal.createdAt).toLocaleString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
                     </div>
-                  )}
+                    {withdrawal.processedAt && withdrawal.processedAt !== withdrawal.createdAt && (
+                      <div className="bg-[#12192A]/50 rounded-lg p-3 border border-[#1e2435]">
+                        <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">Processed</p>
+                        <p className="text-sm text-gray-300">
+                          {new Date(withdrawal.processedAt).toLocaleString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Admin Note */}
                   {withdrawal.adminNote && (
-                    <div className="mt-3 p-3 bg-[#12192A] rounded-lg border border-[#1e2435]">
-                      <p className="text-xs text-gray-400 mb-1">Note:</p>
-                      <p className="text-sm text-gray-300">{withdrawal.adminNote}</p>
+                    <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-lg p-4 border border-blue-500/20">
+                      <p className="text-xs text-blue-400 mb-2 uppercase tracking-wide font-semibold">Admin Note</p>
+                      <p className="text-sm text-gray-200">{withdrawal.adminNote}</p>
                     </div>
                   )}
                 </div>

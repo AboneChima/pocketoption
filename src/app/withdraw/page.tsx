@@ -9,6 +9,7 @@ import MobileBottomNav from '@/components/MobileBottomNav'
 import WithdrawModal from '@/components/modals/WithdrawModal'
 import WithdrawalHistory from '@/components/WithdrawalHistory'
 import { PageLoader } from '@/components/ui/UnifiedLoader'
+import { formatCurrency } from '@/lib/utils'
 
 export default function WithdrawPage() {
   const { user, loading, refreshUser } = useAuth()
@@ -100,7 +101,7 @@ export default function WithdrawPage() {
                       <span>Available Balance</span>
                     </p>
                     <p className="text-4xl lg:text-5xl font-bold text-white mb-1">
-                      ${balance.toFixed(2)}
+                      {formatCurrency(balance)}
                     </p>
                     <p className="text-sm text-green-400">Ready for instant withdrawal</p>
                   </div>
