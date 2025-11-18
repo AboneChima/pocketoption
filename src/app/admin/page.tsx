@@ -131,7 +131,8 @@ export default function AdminPage() {
     
     if (!isAuthenticated || isAuthenticated !== 'true') {
       console.log('Not authenticated, redirecting to login...')
-      router.push('/admin/login')
+      // Use window.location for more reliable redirect
+      window.location.href = '/admin/login'
       return
     }
     
