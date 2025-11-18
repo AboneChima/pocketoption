@@ -116,6 +116,9 @@ export default function AdminPage() {
 
   // Check admin authentication
   useEffect(() => {
+    // Only run on client side
+    if (typeof window === 'undefined') return
+    
     console.log('Admin page: Checking authentication...')
     const isAuthenticated = localStorage.getItem('admin_authenticated')
     const storedEmail = localStorage.getItem('admin_email')
