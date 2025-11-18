@@ -4,11 +4,12 @@ import { verifyTokenEdge } from '@/lib/auth-edge-compatible'
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Skip proxy for public routes
+  // Skip proxy for public routes and admin routes
   if (
     pathname.startsWith('/api/auth/login') ||
     pathname.startsWith('/api/auth/register') ||
     pathname.startsWith('/auth') ||
+    pathname.startsWith('/admin') || // Allow all admin routes
     pathname === '/' ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon') ||
@@ -22,8 +23,8 @@ export async function proxy(request: NextRequest) {
   const token = authHeader?.replace('Bearer ', '') || request.cookies.get('auth-token')?.value
 
   if (!token) {
-    // Redirect to login for protected routes
-    if (pathname.startsWith('/dashboard') || pathname.startsWith('/admin')) {
+    // Redirect to login for protected routes (except admin which has its own auth)
+    if (pathname.startsWith('/dashboard')) {
       return NextResponse.redirect(new URL('/auth', request.url))
     }
     return NextResponse.next()
@@ -34,8 +35,8 @@ export async function proxy(request: NextRequest) {
     const decoded = await verifyTokenEdge(token)
     
     if (!decoded) {
-      // Invalid token, redirect to login
-      if (pathname.startsWith('/dashboard') || pathname.startsWith('/admin')) {
+      // Invalid token, redirect to login (except admin which has its own auth)
+      if (pathname.startsWith('/dashboard')) {
         return NextResponse.redirect(new URL('/auth', request.url))
       }
       return NextResponse.next()
@@ -52,8 +53,8 @@ export async function proxy(request: NextRequest) {
   } catch (error) {
     console.error('Proxy authentication error:', error)
     
-    // On error, redirect to login for protected routes
-    if (pathname.startsWith('/dashboard') || pathname.startsWith('/admin')) {
+    // On error, redirect to login for protected routes (except admin which has its own auth)
+    if (pathname.startsWith('/dashboard')) {
       return NextResponse.redirect(new URL('/auth', request.url))
     }
     
