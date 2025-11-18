@@ -193,16 +193,27 @@ export default function AdminPage() {
       })
 
       if (response.ok) {
-        alert('Balance updated successfully')
+        const data = await response.json()
+        const transactionType = amount > 0 ? 'credited to' : 'debited from'
+        const transactionRecord = amount > 0 ? 'Deposit' : 'Withdrawal'
+        alert(
+          `✅ Balance ${transactionType} user successfully!\n\n` +
+          `Previous Balance: $${data.oldBalance.toFixed(2)}\n` +
+          `Adjustment: ${amount >= 0 ? '+' : ''}$${amount.toFixed(2)}\n` +
+          `New Balance: $${data.newBalance.toFixed(2)}\n\n` +
+          `${transactionRecord} record created in transaction history.`
+        )
         setBalanceUpdate('')
         setSelectedUser(null)
-        fetchAdminData()
+        // Refresh admin data to show updated balance
+        await fetchAdminData()
       } else {
-        alert('Failed to update balance')
+        const errorData = await response.json()
+        alert(`❌ Failed to update balance: ${errorData.error}`)
       }
     } catch (error) {
       console.error('Balance update error:', error)
-      alert('Failed to update balance')
+      alert('❌ Failed to update balance. Please try again.')
     }
   }
 
@@ -1424,14 +1435,26 @@ export default function AdminPage() {
                 <p className="text-2xl font-bold text-green-400">{formatCurrency(selectedUser.balance)}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">New Balance</label>
+                <label className="block text-sm font-medium text-gray-400 mb-2">
+                  Balance Adjustment Amount
+                </label>
                 <input
                   type="number"
                   value={balanceUpdate}
                   onChange={(e) => setBalanceUpdate(e.target.value)}
-                  placeholder="Enter new balance"
+                  placeholder="Enter amount (+ to add, - to subtract)"
                   className="w-full px-4 py-3 bg-[#1e2435] border border-[#252d42] rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 transition-colors"
                 />
+                <p className="text-xs text-gray-500 mt-2">
+                  💡 Enter positive number to add (e.g., 1000), negative to subtract (e.g., -500)
+                </p>
+                {balanceUpdate && !isNaN(parseFloat(balanceUpdate)) && (
+                  <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                    <p className="text-sm text-blue-400">
+                      New Balance: {formatCurrency(selectedUser.balance + parseFloat(balanceUpdate))}
+                    </p>
+                  </div>
+                )}
               </div>
               <div className="flex space-x-3 pt-4">
                 <button
