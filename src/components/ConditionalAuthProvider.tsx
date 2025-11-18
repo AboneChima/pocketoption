@@ -7,24 +7,30 @@ import { useEffect, useState } from 'react'
 export function ConditionalAuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [isClient, setIsClient] = useState(false)
+  const [shouldUseAuth, setShouldUseAuth] = useState(true)
   
   useEffect(() => {
     setIsClient(true)
+    
+    // Check if we're on an admin route
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname
+      const isAdmin = path.startsWith('/admin')
+      setShouldUseAuth(!isAdmin)
+      
+      console.log('ConditionalAuthProvider mounted:', { 
+        pathname: path,
+        isAdmin,
+        shouldUseAuth: !isAdmin
+      })
+    }
   }, [])
   
   // Check if current route is admin route
-  // Also check window.location as fallback for SSR issues
-  const isAdminRoute = pathname?.startsWith('/admin') || 
-    (isClient && typeof window !== 'undefined' && window.location.pathname.startsWith('/admin'))
-  
-  console.log('ConditionalAuthProvider:', { 
-    pathname, 
-    windowPath: isClient && typeof window !== 'undefined' ? window.location.pathname : 'N/A',
-    isAdminRoute
-  })
+  const isAdminRoute = pathname?.startsWith('/admin')
   
   // Don't wrap admin routes with AuthProvider
-  if (isAdminRoute) {
+  if (isAdminRoute || !shouldUseAuth) {
     console.log('✅ Admin route detected, skipping AuthProvider')
     return <>{children}</>
   }
